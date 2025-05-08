@@ -5,14 +5,15 @@ import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import fs from 'fs';
 import path from 'path';
-// PDF-Parser importieren (pdfjs-dist statt pdf-parse)
-import * as pdfjs from 'pdfjs-dist';
+// PDF-Parser ändern
+import { PDFDocument } from 'pdf-lib';
+import extract from 'pdf-text-extract';
 import mammoth from 'mammoth';
 import { Id } from "./_generated/dataModel";
+import { promisify } from 'util';
 
-// Setze den Worker-Pfad für pdfjs auf null, da wir in Node.js laufen und keinen Worker benötigen
-// @ts-ignore - Typings können hier manchmal problematisch sein
-pdfjs.GlobalWorkerOptions.workerSrc = null;
+// Umwandlung des callback-basierten pdf-text-extract in eine Promise-basierte Version
+const extractTextFromPDF = promisify(extract);
 
 const CHUNK_SIZE_WORDS = 1500; // Ungefähre Wortanzahl pro Chunk, muss experimentell angepasst werden!
 
@@ -89,39 +90,47 @@ export const startFullContractAnalysis = action({
 
     try {
         if (fileName.endsWith(".pdf")) {
-            // PDF-Support mit pdfjs-dist
-            console.log("Processing PDF file with pdfjs-dist...");
-            
-            // ArrayBuffer aus dem Buffer erstellen
-            const arrayBuffer = fileBuffer.buffer.slice(
-                fileBuffer.byteOffset, 
-                fileBuffer.byteOffset + fileBuffer.byteLength
-            );
-            
-            // PDF-Dokument laden
-            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-            const pdfDocument = await loadingTask.promise;
-            
-            let fullText = '';
-            
-            // Durch alle Seiten iterieren und Text extrahieren
-            for (let i = 1; i <= pdfDocument.numPages; i++) {
-                const page = await pdfDocument.getPage(i);
-                const content = await page.getTextContent();
-                
-                // Text aus den Inhaltselementen extrahieren und zusammenführen
-                const pageText = content.items
-                    .map((item) => {
-                        // @ts-ignore - Das ist ein bekanntes Problem mit den Typings
-                        return typeof item.str === 'string' ? item.str : '';
-                    })
-                    .join(' ');
-                    
-                fullText += pageText + '\n';
+            // PDF-Support mit pdf-lib und pdf-text-extract
+            console.log("Processing PDF file...");
+
+            // Temporäre Datei erstellen, da pdf-text-extract mit Dateipfaden arbeitet
+            const tempDir = path.join(process.cwd(), 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
             }
             
-            extractedText = fullText;
-            console.log(`PDF text extracted successfully. Length: ${extractedText.length} characters`);
+            const tempFilePath = path.join(tempDir, `temp_${Date.now()}.pdf`);
+            fs.writeFileSync(tempFilePath, fileBuffer);
+            
+            try {
+                // Text aus PDF extrahieren
+                const pages = await extractTextFromPDF(tempFilePath);
+                extractedText = pages.join('\n\n');
+                
+                // Prüfen, ob Text erfolgreich extrahiert wurde
+                if (!extractedText || extractedText.trim().length === 0) {
+                    // Wenn pdf-text-extract keinen Text findet, versuchen wir es mit pdf-lib
+                    console.log("No text extracted from pdf-text-extract, trying pdf-lib...");
+                    const pdfDoc = await PDFDocument.load(fileBuffer);
+                    
+                    // Anzahl der Seiten ausgeben (zur Information)
+                    console.log(`PDF has ${pdfDoc.getPageCount()} pages.`);
+                    
+                    // HINWEIS: pdf-lib kann standardmäßig keinen Text aus PDFs extrahieren.
+                    // Es ist hauptsächlich zum Erstellen/Bearbeiten von PDFs gedacht, nicht zum Extrahieren von Text.
+                    // Wir fügen hier einen Fallback-Text hinzu
+                    extractedText = `PDF konnte nicht vollständig extrahiert werden. Die PDF hat ${pdfDoc.getPageCount()} Seiten.`;
+                }
+            } finally {
+                // Temporäre Datei aufräumen, egal ob erfolgreich oder nicht
+                try {
+                    fs.unlinkSync(tempFilePath);
+                } catch (cleanupError) {
+                    console.error("Failed to delete temporary PDF file:", cleanupError);
+                }
+            }
+            
+            console.log(`PDF text extracted. Length: ${extractedText.length} characters`);
         } else if (fileName.endsWith(".docx")) {
             console.log("Processing DOCX file...");
             const result = await mammoth.extractRawText({ buffer: fileBuffer });
