@@ -54,14 +54,15 @@ export default function RootLayout({
                     {/* Rechte Seite - Auth-Buttons und Theme-Toggle */}
                     <div className="flex items-center gap-2">
                       <SignedOut>
+                        {/* Theme-Toggle vor den Auth-Buttons */}
+                        <ThemeToggle />
                         <SignInButton />
                         <SignUpButton />
                       </SignedOut>
                       <SignedIn>
+                        <ThemeToggle />
                         <UserButton afterSignOutUrl="/" />
                       </SignedIn>
-                      {/* Theme-Toggle direkt neben dem Profilbild */}
-                      <ThemeToggle />
                     </div>
                   </div>
                 </header>
