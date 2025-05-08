@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Upload, FileText, X, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { useUploadAndAnalyzeContract } from "@/hooks/useConvex"
 
 export function FileUpload() {
   const router = useRouter()
@@ -15,6 +16,9 @@ export function FileUpload() {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  
+  // Convex-Hook für Upload und Analyse
+  const uploadAndAnalyzeContract = useUploadAndAnalyzeContract();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -35,11 +39,12 @@ export function FileUpload() {
       if (
         droppedFile.type === "application/pdf" ||
         droppedFile.type === "application/msword" ||
-        droppedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        droppedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        droppedFile.type === "text/plain" // Unterstützung für txt Dateien
       ) {
         setFile(droppedFile)
       } else {
-        setError("Bitte laden Sie nur PDF oder Word-Dokumente hoch.")
+        setError("Bitte laden Sie nur PDF, Word oder TXT-Dokumente hoch.")
       }
     }
   }
@@ -51,11 +56,12 @@ export function FileUpload() {
       if (
         selectedFile.type === "application/pdf" ||
         selectedFile.type === "application/msword" ||
-        selectedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        selectedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        selectedFile.type === "text/plain" // Unterstützung für txt Dateien
       ) {
         setFile(selectedFile)
       } else {
-        setError("Bitte laden Sie nur PDF oder Word-Dokumente hoch.")
+        setError("Bitte laden Sie nur PDF, Word oder TXT-Dokumente hoch.")
       }
     }
   }
@@ -65,25 +71,47 @@ export function FileUpload() {
     setError(null)
   }
 
-  const uploadFile = () => {
+  const uploadFile = async () => {
     if (!file) return
 
     setUploading(true)
     setError(null)
+    setProgress(10) // Startfortschritt anzeigen
 
-    // Simulate upload progress
-    let currentProgress = 0
-    const interval = setInterval(() => {
-      currentProgress += 5
-      setProgress(currentProgress)
+    try {
+      // Echter Upload und Analyse über Convex
+      const result = await uploadAndAnalyzeContract(file);
+      
+      // Fortschritt simulieren während der Analyse im Backend
+      let currentProgress = 10;
+      const interval = setInterval(() => {
+        currentProgress += 5;
+        setProgress(Math.min(currentProgress, 95)); // Maximal 95%, 100% erst nach Abschluss
+        
+        if (currentProgress >= 95) {
+          clearInterval(interval);
+        }
+      }, 300);
 
-      if (currentProgress >= 100) {
-        clearInterval(interval)
+      if (result.success && result.contractId) {
+        // Erfolg - warte einen Moment und leite dann weiter
         setTimeout(() => {
-          router.push("/analyse-beispiel")
-        }, 500)
+          setProgress(100);
+          // Navigiere zur Detailseite oder Analyseseite mit der Vertrags-ID
+          router.push(`/analytik/${result.contractId}`);
+        }, 1000);
+      } else {
+        // Wenn result.success false ist, benutze result.error für die Fehlermeldung
+        throw new Error(result.error || "Upload oder Analyse fehlgeschlagen. Unbekannter Fehler.");
       }
-    }, 100)
+    } catch (err: any) { // Expliziter Typ für err
+      // Verwende err.message, wenn vorhanden, sonst eine generische Meldung
+      const errorMessage = err.message || "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.";
+      setError(errorMessage);
+      setUploading(false);
+      setProgress(0); // Fortschritt zurücksetzen
+      console.error("Upload error details:", err); // Detailliertere Logausgabe
+    }
   }
 
   return (
@@ -101,7 +129,7 @@ export function FileUpload() {
             <Upload className="h-6 w-6 text-primary" />
           </div>
           <h3 className="mb-2 text-lg font-medium">Vertrag hier ablegen oder auswählen</h3>
-          <p className="mb-4 text-sm text-muted-foreground">Unterstützte Formate: PDF, DOC, DOCX</p>
+          <p className="mb-4 text-sm text-muted-foreground">Unterstützte Formate: PDF, DOC, DOCX, TXT</p>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => document.getElementById("file-upload")?.click()}>
               <FileText className="mr-2 h-4 w-4" />
@@ -111,7 +139,7 @@ export function FileUpload() {
               id="file-upload"
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
               onChange={handleFileChange}
             />
           </div>

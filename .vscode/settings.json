@@ -1,0 +1,6 @@
+{
+    "window.autoDetectColorScheme": true,
+    "git.autoStash": true,
+    "git.blame.editorDecoration.enabled": true,
+    "git.blame.statusBarItem.enabled": true
+}

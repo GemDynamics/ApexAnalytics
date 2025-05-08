@@ -1,10 +1,127 @@
 import { mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 // Typ für den Status, um Typsicherheit zu gewährleisten
 type ContractStatus = Doc<"contracts">["status"];
+
+// Neue Mutation zum Generieren einer Upload-URL
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("generateUploadUrl wird aufgerufen");
+    
+    const identity = await ctx.auth.getUserIdentity();
+    console.log("Benutzer-Authentifizierung:", identity ? "Erfolgreich" : "Fehlgeschlagen");
+    
+    if (!identity) {
+      throw new ConvexError("User not authenticated to upload files.");
+    }
+    
+    // Generiere eine signierte URL für den Upload
+    try {
+      const url = await ctx.storage.generateUploadUrl();
+      console.log("Upload-URL erfolgreich generiert:", url);
+      return url;
+    } catch (error) {
+      console.error("Fehler bei der URL-Generierung:", error);
+      throw error;
+    }
+  },
+});
+
+// Neue serverbasierte Upload-Methode ohne direkten Browser-Fetch
+export const uploadFile = mutation({
+  args: {
+    fileName: v.string(),
+    fileType: v.string(),
+    fileBuffer: v.any(), // Verwende v.any() statt v.bytes(), um verschiedene Typen zu akzeptieren
+  },
+  handler: async (ctx, args) => {
+    console.log(`Uploading file: ${args.fileName} (${args.fileType})`);
+    
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("User not authenticated to upload files.");
+    }
+    
+    try {
+      // Wir verwenden jetzt generateUploadUrl um eine korrekte Storage-ID zu erhalten
+      // und dann führen wir den Upload direkt mit dieser URL durch
+      const uploadUrl = await ctx.storage.generateUploadUrl();
+      console.log("Generated upload URL:", uploadUrl);
+      
+      // Blob aus dem ArrayBuffer erstellen für den Upload
+      let blob;
+      if (args.fileBuffer instanceof ArrayBuffer) {
+        blob = new Blob([new Uint8Array(args.fileBuffer)]);
+      } else if (args.fileBuffer instanceof Uint8Array) {
+        blob = new Blob([args.fileBuffer]);
+      } else {
+        blob = new Blob([args.fileBuffer]);
+      }
+      
+      // Upload zur URL durchführen
+      const uploadResult = await fetch(uploadUrl, {
+        method: "PUT",
+        body: blob
+      });
+      
+      if (!uploadResult.ok) {
+        throw new Error(`Failed to upload file: ${uploadResult.status} ${uploadResult.statusText}`);
+      }
+      
+      // Wir extrahieren die Storage-ID aus der URL
+      // Convex-Upload-URLs haben das Format: 
+      // https://[project-id].convex.cloud/api/storage/upload/[storageId]?token=[token]
+      // oder manchmal ohne 'upload/' Teil
+      const urlObj = new URL(uploadUrl);
+      const pathParts = urlObj.pathname.split('/');
+      
+      // Die Storage-ID ist der letzte Teil des Pfades vor den Query-Parametern
+      // Wir suchen nach dem letzten Teil, der kein "storage", "api", oder "upload" ist
+      let storageId;
+      for (let i = pathParts.length - 1; i >= 0; i--) {
+        if (pathParts[i] && !['api', 'storage', 'upload', ''].includes(pathParts[i])) {
+          storageId = pathParts[i];
+          break;
+        }
+      }
+      
+      if (!storageId) {
+        throw new ConvexError("Failed to extract valid storage ID from upload URL: " + uploadUrl);
+      }
+      
+      console.log(`File uploaded with storageId: ${storageId}`);
+      
+      // Wir können die Datei nicht validieren, da ctx.storage.get in einer Mutation nicht verfügbar ist
+      // Die Validierung erfolgt später in der Action
+      
+      // Vertrag in der Datenbank erstellen mit der richtigen Storage-ID
+      const contractId = await ctx.db.insert("contracts", {
+        ownerId: identity.subject,
+        fileName: args.fileName,
+        storageId: storageId as any, // Cast zur ID
+        status: "pending",
+        uploadedAt: Date.now(),
+        processedChunks: 0,
+        totalChunks: 0,
+        analysisProtocol: [],
+      });
+      
+      console.log(`Contract record created with ID: ${contractId}`);
+      
+      return { 
+        contractId, 
+        storageId: storageId as any 
+      };
+    } catch (error) {
+      console.error("Error during file upload:", error);
+      throw new ConvexError(`File upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  },
+});
 
 export const updateContractStatus = internalMutation({
   args: {

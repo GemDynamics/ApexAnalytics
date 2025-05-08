@@ -1,150 +1,100 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { FileText, AlertTriangle, AlertCircle, CheckCircle } from "lucide-react"
+import Link from "next/link"
+import { FileText, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { useContracts } from "@/hooks/useConvex"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { Doc } from "@/convex/_generated/dataModel"
 
-interface ContractsListProps {
-  onContractClick?: () => void
-}
+export function ContractsList() {
+  const { contracts, isLoading } = useContracts();
 
-export function ContractsList({ onContractClick }: ContractsListProps) {
-  const router = useRouter()
-  const [selectedContract, setSelectedContract] = useState("1")
-
-  // Sample contracts data
-  const contracts = [
-    {
-      id: "1",
-      name: "Wohngebäude München-Schwabing",
-      client: "Stadt München",
-      date: "15.04.2023",
-      riskLevel: "high",
-    },
-    {
-      id: "2",
-      name: "Bürogebäude Frankfurt",
-      client: "Immobilien GmbH",
-      date: "02.03.2023",
-      riskLevel: "medium",
-    },
-    {
-      id: "3",
-      name: "Schulgebäude Berlin",
-      client: "Berliner Schulbau",
-      date: "18.02.2023",
-      riskLevel: "low",
-    },
-    {
-      id: "4",
-      name: "Brückensanierung Hamburg",
-      client: "Hansestadt Hamburg",
-      date: "05.01.2023",
-      riskLevel: "medium",
-    },
-    {
-      id: "5",
-      name: "Einkaufszentrum Köln",
-      client: "Retail Invest AG",
-      date: "12.12.2022",
-      riskLevel: "high",
-    },
-    {
-      id: "6",
-      name: "Krankenhaus Erweiterung Stuttgart",
-      client: "Klinikum Stuttgart",
-      date: "28.11.2022",
-      riskLevel: "medium",
-    },
-    {
-      id: "7",
-      name: "Industriehalle Nürnberg",
-      client: "Industrie Solutions GmbH",
-      date: "15.10.2022",
-      riskLevel: "low",
-    },
-    {
-      id: "8",
-      name: "Hotelkomplex Dresden",
-      client: "Hotel Group International",
-      date: "02.09.2022",
-      riskLevel: "medium",
-    },
-  ]
-
-  const getRiskIcon = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "high":
-        return <AlertTriangle className="h-4 w-4 text-red-500" />
-      case "medium":
-        return <AlertCircle className="h-4 w-4 text-amber-500" />
-      case "low":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+  const getStatusVariant = (status: Doc<"contracts">["status"]) => {
+    switch (status) {
+      case "completed":
+        return "default";
+      case "processing":
+      case "chunking":
+        return "secondary";
+      case "failed":
+        return "destructive";
+      case "pending":
       default:
-        return null
+        return "outline";
     }
-  }
+  };
 
-  const getRiskBadge = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "high":
-        return (
-          <Badge variant="destructive" className="ml-auto">
-            Hohes Risiko
-          </Badge>
-        )
-      case "medium":
-        return (
-          <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 ml-auto">
-            Mittleres Risiko
-          </Badge>
-        )
-      case "low":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 ml-auto">
-            Niedriges Risiko
-          </Badge>
-        )
-      default:
-        return null
+  const getStatusText = (status: Doc<"contracts">["status"]) => {
+    switch (status) {
+      case "pending": return "Warten";
+      case "processing": return "In Bearbeitung";
+      case "chunking": return "Vorbereitung";
+      case "completed": return "Abgeschlossen";
+      case "failed": return "Fehlgeschlagen";
+      default: return "Unbekannt";
     }
-  }
+  };
 
   return (
-    <div className="rounded-lg border shadow-sm overflow-hidden">
-      <div className="divide-y max-h-[600px] overflow-y-auto">
-        {contracts.map((contract) => (
-          <div
-            key={contract.id}
-            className={`p-3 cursor-pointer transition-colors ${
-              selectedContract === contract.id
-                ? "bg-primary/10 border-l-4 border-primary"
-                : "hover:bg-muted/50 border-l-4 border-transparent"
-            }`}
-            onClick={() => {
-              setSelectedContract(contract.id)
-              if (onContractClick) onContractClick()
-              router.push(`/analytik/${contract.id}`)
-            }}
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <FileText
-                className={`h-5 w-5 ${selectedContract === contract.id ? "text-primary" : "text-muted-foreground"}`}
-              />
-              <h3 className="font-medium line-clamp-1">{contract.name}</h3>
+    <Card>
+      <CardHeader>
+        <CardTitle>Meine Verträge</CardTitle>
+        <CardDescription>Liste Ihrer hochgeladenen und analysierten Verträge.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[400px]">
+          {isLoading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-20" />
+                </div>
+              ))}
             </div>
-            <div className="flex items-center justify-between text-sm text-muted-foreground pl-8">
-              <span>{contract.client}</span>
-              {getRiskIcon(contract.riskLevel)}
+          ) : contracts && contracts.length > 0 ? (
+            <div className="space-y-3">
+              {contracts.map((contract) => (
+                <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
+                          {contract.fileName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge 
+                      variant={getStatusVariant(contract.status)}
+                      className={contract.status === 'completed' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
+                    >
+                      {contract.status === 'processing' || contract.status === 'chunking' ? (
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      ) : null}
+                      {getStatusText(contract.status)}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground mt-2 pl-8">
-              <span>{contract.date}</span>
-              {getRiskBadge(contract.riskLevel)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">Noch keine Verträge hochgeladen.</p>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }

@@ -5,7 +5,24 @@ import type { Doc } from "./_generated/dataModel"; // Import Doc
 export const getContractById = query({
   args: { contractId: v.id("contracts") },
   handler: async (ctx, args): Promise<Doc<"contracts"> | null> => {
-    return await ctx.db.get(args.contractId);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      // Oder einen Fehler werfen, wenn ein nicht authentifizierter Zugriff explizit fehlschlagen soll
+      return null;
+    }
+    const contract = await ctx.db.get(args.contractId);
+
+    if (!contract) {
+      return null;
+    }
+
+    // Prüfen, ob der authentifizierte Benutzer der Eigentümer des Vertrags ist
+    if (contract.ownerId !== identity.subject) {
+      // Nicht autorisiert, den Vertrag nicht zurückgeben
+      return null;
+    }
+
+    return contract;
   },
 });
 

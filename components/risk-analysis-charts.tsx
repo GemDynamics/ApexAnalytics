@@ -92,7 +92,6 @@ export function RiskAnalysisCharts() {
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     labelLine={true}
-                    labelStyle={{ fontSize: "12px" }}
                     animationDuration={1500}
                   >
                     {riskDistribution.map((entry, index) => (
@@ -111,7 +110,7 @@ export function RiskAnalysisCharts() {
           <h3 className="text-lg font-semibold mb-4">Risiko-Radar-Analyse</h3>
           <ChartAnimationWrapper className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={riskRadarData} animationDuration={1500}>
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={riskRadarData}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} />

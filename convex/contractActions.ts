@@ -5,8 +5,14 @@ import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import fs from 'fs';
 import path from 'path';
-// PDF-Support vollständig entfernt
+// PDF-Parser importieren (pdfjs-dist statt pdf-parse)
+import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import { Id } from "./_generated/dataModel";
+
+// Setze den Worker-Pfad für pdfjs auf null, da wir in Node.js laufen und keinen Worker benötigen
+// @ts-ignore - Typings können hier manchmal problematisch sein
+pdfjs.GlobalWorkerOptions.workerSrc = null;
 
 const CHUNK_SIZE_WORDS = 1500; // Ungefähre Wortanzahl pro Chunk, muss experimentell angepasst werden!
 
@@ -45,7 +51,10 @@ function splitTextIntoChunks(text: string, chunkSizeInWords: number): string[] {
 }
 
 export const startFullContractAnalysis = action({
-  args: { storageId: v.id("_storage"), contractId: v.id("contracts") },
+  args: { 
+    storageId: v.id("_storage"), // Wir verwenden nur noch echte Storage-IDs
+    contractId: v.id("contracts") 
+  },
   handler: async (ctx, args) => {
     console.log(`Starting full contract analysis for contractId: ${args.contractId}`);
 
@@ -55,6 +64,7 @@ export const startFullContractAnalysis = action({
       totalChunks: 0,
     });
 
+    // Hole die tatsächliche Datei aus dem Storage
     const fileBlob = await ctx.storage.get(args.storageId);
     if (!fileBlob) {
       await ctx.runMutation(internal.contractMutations.updateContractStatus, {
@@ -74,30 +84,67 @@ export const startFullContractAnalysis = action({
         throw new ConvexError("Contract document not found in DB for text extraction.");
     }
     const fileName = contractDocument.fileName.toLowerCase();
+    
+    console.log(`Attempting text extraction for: ${fileName}`); // Zusätzliches Logging
+
     try {
         if (fileName.endsWith(".pdf")) {
-            // PDF-Support vollständig deaktiviert
-            await ctx.runMutation(internal.contractMutations.updateContractStatus, {
-                contractId: args.contractId, status: "failed",
-            });
-            throw new ConvexError("PDF-Support ist vorübergehend deaktiviert. Bitte nutzen Sie .docx oder .txt Dateien.");
+            // PDF-Support mit pdfjs-dist
+            console.log("Processing PDF file with pdfjs-dist...");
+            
+            // ArrayBuffer aus dem Buffer erstellen
+            const arrayBuffer = fileBuffer.buffer.slice(
+                fileBuffer.byteOffset, 
+                fileBuffer.byteOffset + fileBuffer.byteLength
+            );
+            
+            // PDF-Dokument laden
+            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+            const pdfDocument = await loadingTask.promise;
+            
+            let fullText = '';
+            
+            // Durch alle Seiten iterieren und Text extrahieren
+            for (let i = 1; i <= pdfDocument.numPages; i++) {
+                const page = await pdfDocument.getPage(i);
+                const content = await page.getTextContent();
+                
+                // Text aus den Inhaltselementen extrahieren und zusammenführen
+                const pageText = content.items
+                    .map((item) => {
+                        // @ts-ignore - Das ist ein bekanntes Problem mit den Typings
+                        return typeof item.str === 'string' ? item.str : '';
+                    })
+                    .join(' ');
+                    
+                fullText += pageText + '\n';
+            }
+            
+            extractedText = fullText;
+            console.log(`PDF text extracted successfully. Length: ${extractedText.length} characters`);
         } else if (fileName.endsWith(".docx")) {
+            console.log("Processing DOCX file...");
             const result = await mammoth.extractRawText({ buffer: fileBuffer });
             extractedText = result.value;
+            console.log("DOCX text extracted successfully.");
         } else if (fileName.endsWith(".txt")) { 
+            console.log("Processing TXT file...");
             extractedText = fileBuffer.toString('utf-8');
+            console.log("TXT text extracted successfully.");
         } else {
             await ctx.runMutation(internal.contractMutations.updateContractStatus, {
                 contractId: args.contractId, status: "failed",
             });
-            throw new ConvexError(`Unsupported file type: ${contractDocument.fileName}. Only .docx and .txt are currently supported.`);
+            // Angepasste Fehlermeldung
+            throw new ConvexError(`Unsupported file type: ${contractDocument.fileName}. Only .pdf, .docx, and .txt are currently supported.`);
         }
     } catch (error: any) {
-        console.error("Error during text extraction:", error);
+        console.error(`Error during text extraction for ${fileName}:`, error);
         await ctx.runMutation(internal.contractMutations.updateContractStatus, {
             contractId: args.contractId, status: "failed",
         });
-        throw new ConvexError(`Failed to extract text: ${error.message}`);
+        // Detailliertere Fehlermeldung
+        throw new ConvexError(`Failed to extract text from ${fileName}: ${error.message || 'Unknown error'}`);
     }
     
     if (!extractedText || extractedText.trim().length === 0) {
@@ -105,7 +152,7 @@ export const startFullContractAnalysis = action({
         contractId: args.contractId,
         status: "failed",
       });
-      throw new ConvexError("Extracted text is empty.");
+      throw new ConvexError(`Extracted text from ${fileName} is empty.`);
     }
     console.log(`Text extracted (length: ${extractedText.length}) from ${fileName}`);
 
@@ -271,4 +318,87 @@ Stelle sicher, dass deine Antwort ausschließlich ein valides JSON-Array ist, wi
     });
     console.log(`Successfully processed and stored chunk ${args.chunkNumber} for contract ${args.contractId}`);
   },
+});
+
+// Neue Action zur Datei-Hochladung über fetch, da fetch() nur in Actions verfügbar ist
+export const uploadFileAction = action({
+  args: {
+    fileName: v.string(),
+    fileType: v.string(),
+    fileBuffer: v.any(), // Wir akzeptieren unterschiedliche Buffer-Typen
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; contractId?: string; storageId?: Id<"_storage">; error?: string }> => {
+    console.log(`Uploading file via action: ${args.fileName} (${args.fileType})`);
+    
+    // Authentifizierung prüfen
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("User not authenticated to upload files.");
+    }
+    
+    try {
+      // 1. Upload-URL generieren
+      const uploadUrl = await ctx.storage.generateUploadUrl();
+      console.log("Generated upload URL:", uploadUrl);
+      
+      // 2. Blob aus dem ArrayBuffer erstellen
+      let blob;
+      if (args.fileBuffer instanceof ArrayBuffer) {
+        blob = new Blob([new Uint8Array(args.fileBuffer)]);
+      } else if (args.fileBuffer instanceof Uint8Array) {
+        blob = new Blob([args.fileBuffer]);
+      } else {
+        blob = new Blob([args.fileBuffer]);
+      }
+      
+      // 3. Upload zur URL durchführen (mit fetch, was nur in Actions erlaubt ist)
+      const uploadResult = await fetch(uploadUrl, {
+        method: "PUT",
+        body: blob
+      });
+      
+      if (!uploadResult.ok) {
+        throw new Error(`Failed to upload file: ${uploadResult.status} ${uploadResult.statusText}`);
+      }
+      
+      // 4. StorageId aus der URL extrahieren
+      const urlObj = new URL(uploadUrl);
+      const pathParts = urlObj.pathname.split('/');
+      
+      // Die Storage-ID ist im Pfad. Wir parsen sie heraus.
+      let storageId: string | undefined;
+      for (let i = pathParts.length - 1; i >= 0; i--) {
+        if (pathParts[i] && !['api', 'storage', 'upload', ''].includes(pathParts[i])) {
+          storageId = pathParts[i];
+          break;
+        }
+      }
+      
+      if (!storageId) {
+        throw new ConvexError("Failed to extract valid storage ID from upload URL");
+      }
+      
+      console.log(`File uploaded successfully with storageId: ${storageId}`);
+      
+      // 5. Vertrag in der Datenbank erstellen
+      const contractId: string = await ctx.runMutation(api.contractMutations.createContractRecord, {
+        fileName: args.fileName,
+        storageId: storageId as Id<"_storage">
+      });
+      
+      console.log(`Contract record created with ID: ${contractId}`);
+      
+      return { 
+        success: true, 
+        contractId, 
+        storageId: storageId as Id<"_storage"> 
+      };
+    } catch (error) {
+      console.error("Error in upload action:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
 }); 
