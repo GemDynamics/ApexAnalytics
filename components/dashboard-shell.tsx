@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button"
 import type React from "react"
 import Link from "next/link"
 import { Building2, Plus } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -38,11 +37,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <div className="relative h-9 w-9 rounded-full bg-muted flex items-center justify-center border border-border">
-              <span className="text-xs font-medium">JD</span>
-              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-green-500 border-2 border-background"></span>
-            </div>
+            {/* ThemeToggle und Platzhalter-Profilbild wurden entfernt */}
           </div>
         </div>
       </header>

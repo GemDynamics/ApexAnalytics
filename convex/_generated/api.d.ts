@@ -13,6 +13,9 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as contractActions from "../contractActions.js";
+import type * as contractMutations from "../contractMutations.js";
+import type * as contractsQueries from "../contractsQueries.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -22,7 +25,11 @@ import type {
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  contractActions: typeof contractActions;
+  contractMutations: typeof contractMutations;
+  contractsQueries: typeof contractsQueries;
+}>;
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">

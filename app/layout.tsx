@@ -1,26 +1,76 @@
-import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
+import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ConvexClientProvider } from "../components/convex-provider"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { siteConfig } from "@/config/site"
+import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.dev",
+  title: {
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  // icons: [
+  //   {
+  //     url: "/logo.svg",
+  //     href: "/logo.svg",
+  //   },
+  // ],
 }
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="de" suppressHydrationWarning>
-      <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="de" suppressHydrationWarning>
+        <body className={cn("min-h-screen bg-background font-sans antialiased", inter.className)}>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <ConvexClientProvider>
+              <TooltipProvider>
+                <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                  <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
+                    {/* Linke Seite - leer für Logo oder Navigation */}
+                    <div className="flex items-center gap-2">
+                      {/* Hier könnte ein Logo oder Navigationselemente kommen */}
+                    </div>
+                    
+                    {/* Rechte Seite - Auth-Buttons und Theme-Toggle */}
+                    <div className="flex items-center gap-2">
+                      <SignedOut>
+                        <SignInButton />
+                        <SignUpButton />
+                      </SignedOut>
+                      <SignedIn>
+                        <UserButton afterSignOutUrl="/" />
+                      </SignedIn>
+                      {/* Theme-Toggle direkt neben dem Profilbild */}
+                      <ThemeToggle />
+                    </div>
+                  </div>
+                </header>
+                <main className="flex-1">{children}</main>
+              </TooltipProvider>
+            </ConvexClientProvider>
+          </ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
