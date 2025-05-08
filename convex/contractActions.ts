@@ -2,7 +2,7 @@
 
 import { action, internalAction } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { api, internal } from "./_generated/api.js";
+import { api, internal } from "./_generated/api";
 import fs from 'fs';
 import path from 'path';
 // PDF-Support vollständig entfernt
