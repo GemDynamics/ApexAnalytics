@@ -1,9 +1,11 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import type React from "react"
 import Link from "next/link"
 import { Building2, Plus } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { UserButton, SignInButton, SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs"
+import { AuthButtons } from "./auth-components"
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -42,13 +44,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </nav>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-            <SignedOut>
-              <SignInButton />
-              <SignUpButton />
-            </SignedOut>
+            <AuthButtons />
           </div>
         </div>
       </header>
