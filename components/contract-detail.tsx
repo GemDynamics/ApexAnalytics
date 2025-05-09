@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import { useState } from "react"
 import { useContract } from "@/hooks/useConvex"
 import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"

@@ -1,22 +1,15 @@
-// @ts-nocheck - TypeScript-Fehler für diese gesamte Datei ausschalten bis ButtonProps korrigiert ist
 "use client"
 
-import React, { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp, Edit3, Trash2, GripVertical, MessageSquare, PlusCircle, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { CardDescription } from "@/components/ui/card"
 import type { EditorSection } from "./contract-editor-with-contract"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Id } from "@/convex/_generated/dataModel"
-import { toast } from "sonner"
 
 interface ContractSectionProps {
   section: EditorSection
@@ -106,44 +99,35 @@ export function ContractSection({ section, isActive, onClick, onUpdate }: Contra
           {getRiskIcon(section.risk)}
           <h3 className="font-medium truncate" title={section.title}>{section.title}</h3>
           {section.removed && (
-            // @ts-expect-error TypeScript meldet, dass 'variant' nicht in BadgeProps existiert
             <Badge variant="outline" className="ml-2 bg-gray-100 text-gray-700 whitespace-nowrap">
               Entfernt
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {(
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleCollapse}
-              title={isCollapsed ? "Ausklappen" : "Einklappen"}
-            >
-              {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-            </Button>
-          ) as any}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleCollapse}
+            title={isCollapsed ? "Ausklappen" : "Einklappen"}
+          >
+            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
           {isEditing ? (
             <>
-              {(
-                <Button variant="ghost" size="sm" onClick={handleCancel}>
-                  <X className="h-4 w-4 mr-1" />
-                  Abbrechen
-                </Button>
-              ) as any}
-              {(
-                <Button size="sm" onClick={handleSave}>
-                  <Save className="h-4 w-4 mr-1" />
-                  Speichern
-                </Button>
-              ) as any}
+              <Button variant="ghost" size="sm" onClick={handleCancel}>
+                <X className="h-4 w-4 mr-1" />
+                Abbrechen
+              </Button>
+              <Button size="sm" onClick={handleSave}>
+                <Save className="h-4 w-4 mr-1" />
+                Speichern
+              </Button>
             </>
           ) : (
-            (
-              <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
-                <Edit className="h-4 w-4" />
-              </Button>
-            ) as any
+            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
+              <Edit className="h-4 w-4" />
+            </Button>
           )}
         </div>
       </CardHeader>

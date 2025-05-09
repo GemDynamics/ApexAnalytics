@@ -323,7 +323,7 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">Zu verhandelnde Klauseln</label>
-                <Badge className="text-primary">
+                <Badge variant="outline" className="text-primary">
                   Aus Analyse übernommen
                 </Badge>
               </div>
@@ -440,13 +440,13 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
                   }
                 }}
               />
-              <Button className="w-10 h-10" onClick={sendMessage}>
+              <Button size="icon" onClick={sendMessage}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground" onClick={resetSimulation}>
+            <Button variant="outline" onClick={resetSimulation}>
               Zurücksetzen
             </Button>
             <Button onClick={endSimulation}>Simulation beenden & Feedback erhalten</Button>
@@ -549,7 +549,7 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
                     <Clock className="h-5 w-5 text-primary" />
                     <span className="font-medium">Nächste Übung empfohlen in:</span>
                   </div>
-                  <Badge className="text-primary">
+                  <Badge variant="outline" className="text-primary">
                     2 Tagen
                   </Badge>
                 </div>

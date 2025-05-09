@@ -17,16 +17,16 @@ function ContractItem({ contract }: { contract: any }) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge variant="success">Abgeschlossen</Badge>
+        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">Abgeschlossen</Badge>
       case "processing":
       case "chunking":
-        return <Badge variant="warning" className="animate-pulse">In Bearbeitung</Badge>
+        return <Badge variant="secondary" className="animate-pulse">In Bearbeitung</Badge>
       case "pending":
-        return <Badge variant="default" className="border">Ausstehend</Badge>
+        return <Badge variant="outline">Ausstehend</Badge>
       case "failed":
-        return <Badge variant="danger">Fehlgeschlagen</Badge>
+        return <Badge variant="destructive">Fehlgeschlagen</Badge>
       default:
-        return <Badge variant="default">{status}</Badge>
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 

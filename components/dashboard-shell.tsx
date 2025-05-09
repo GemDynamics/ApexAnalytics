@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button"
-import React from "react"
+import type React from "react"
 import Link from "next/link"
 import { Building2, Plus } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { UserButton, SignInButton, SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs"
-import { cn } from "@/lib/utils"
 
 interface DashboardShellProps {
   children: React.ReactNode

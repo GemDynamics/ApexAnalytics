@@ -194,7 +194,7 @@ export const appendChunkAnalysis = internalMutation({
 
     let newProcessedChunks = (contract.processedChunks || 0) + 1;
     // Stelle sicher, dass analysisProtocol immer ein Array ist
-    let currentProtocol = contract.analysisProtocol ? [...contract.analysisProtocol] : [];
+    let currentProtocol: Doc<"contracts">["analysisProtocol"] = contract.analysisProtocol ? [...contract.analysisProtocol] : [];
 
 
     if (args.error) {
