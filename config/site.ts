@@ -9,10 +9,6 @@ export const siteConfig = {
       href: "/",
     },
     {
-      title: "Analyse",
-      href: "/analyse-beispiel",
-    },
-    {
       title: "Neue Analyse",
       href: "/neue-analyse",
     },

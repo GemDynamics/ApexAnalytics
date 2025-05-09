@@ -185,7 +185,7 @@ function ContractUploadForm() {
 
 // Haupt-Dashboard Komponente
 export default function HomePage() {
-  const contracts = useQuery(api.contractQueries.listContracts)
+  const contracts = useQuery(api.contractsQueries.listUserContracts)
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-screen-lg">

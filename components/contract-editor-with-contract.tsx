@@ -428,312 +428,293 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-16rem)]">
-      <div className="w-full md:w-2/3 border-r">
-        <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <h3 className="font-medium">Vertragsdokument: {contract.fileName}</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" title="Rückgängig" onClick={handleUndo} disabled={historyIndex === 0}>
-              <Undo className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" title="Wiederholen" onClick={handleRedo} disabled={historyIndex === history.length - 1}>
-              <Redo className="h-4 w-4" />
-            </Button>
-            <Separator orientation="vertical" className="h-6" />
-            <Button variant="ghost" size="icon" title="Kopieren" onClick={handleCopySection} disabled={!activeSectionId}>
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" title="Löschen" onClick={handleDeleteSection} disabled={!activeSectionId}>
-              <Trash className="h-4 w-4" />
-            </Button>
-            <Separator orientation="vertical" className="h-6" />
-            <Button variant="outline" size="sm" className="gap-1" onClick={handleSaveContract} disabled={isSaving}>
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-              <Save className="h-4 w-4" />
-              )}
-              <span>{isSaving ? "Speichern..." : "Speichern"}</span>
-            </Button>
-          </div>
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" />
+          <h3 className="font-medium">Vertragsdokument: {contract.fileName}</h3>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" title="Rückgängig" onClick={handleUndo} disabled={historyIndex === 0}>
+            <Undo className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Wiederholen" onClick={handleRedo} disabled={historyIndex === history.length - 1}>
+            <Redo className="h-4 w-4" />
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
+          <Button variant="ghost" size="icon" title="Kopieren" onClick={handleCopySection} disabled={!activeSectionId}>
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Löschen" onClick={handleDeleteSection} disabled={!activeSectionId}>
+            <Trash className="h-4 w-4" />
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
+          <Button variant="outline" size="sm" className="gap-1" onClick={handleSaveContract} disabled={isSaving}>
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+            <Save className="h-4 w-4" />
+            )}
+            <span>{isSaving ? "Speichern..." : "Speichern"}</span>
+          </Button>
+        </div>
+      </div>
+      
+      <div className="flex flex-1 gap-4 p-4 pb-1">
+        <div className="flex-1 flex flex-col h-full">
+          <ScrollArea className="flex-1 h-full">
+            <div className="space-y-4">
+              {sections.map((section) => (
+                <div key={section.id} ref={setSectionRef(section.id)} className="section-container">
+                  <ContractSection
+                    section={section}
+                    isActive={activeSectionId === section.id}
+                    onClick={() => setActiveSectionId(section.id)}
+                    onUpdate={(updatedContent) => {
+                      // Update Funktion für einzelne Sektion
+                      const newSections = sections.map((s) => 
+                        s.id === section.id ? { ...s, content: updatedContent } : s
+                      );
+                      updateSectionsAndHistory(newSections);
+                    }}
+                  />
 
-        <ScrollArea className="h-[calc(100%-3.5rem)]" ref={editorScrollAreaRef}>
-          <div className="p-4 space-y-4">
-            {sections.map((section) => (
-              <div key={section.id} ref={setSectionRef(section.id)} className="section-container">
-                <ContractSection
-                  section={section}
-                  isActive={activeSectionId === section.id}
-                  onClick={() => setActiveSectionId(section.id)}
-                  onUpdate={(updatedContent) => {
-                    // Update Funktion für einzelne Sektion
-                    const newSections = sections.map((s) => 
-                      s.id === section.id ? { ...s, content: updatedContent } : s
-                    );
-                    updateSectionsAndHistory(newSections);
-                  }}
-                />
+                  {/* Alternative Formulations Anzeige dynamisch gemacht */}
+                  {activeSectionId === section.id && (
+                    <Card className="mt-4 border-gray-200 dark:border-gray-700 shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="flex items-center mb-3">
+                          {section.risk === "medium" && (
+                            <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 mr-2">
+                              Verhandelbar
+                            </Badge>
+                          )}
+                          {section.risk === "high" && (
+                            <Badge variant="destructive" className="mr-2">
+                              Dringender Handlungsbedarf
+                            </Badge>
+                          )}
+                          <h3 className="text-base font-semibold">Alternative Formulierungen</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Diese Klausel wurde in der Risikoanalyse als risikobehaftet eingestuft. Wählen Sie eine alternative Formulierung oder entfernen Sie die Klausel.
+                        </p>
 
-                {/* Alternative Formulations Anzeige dynamisch gemacht */}
-                {activeSectionId === section.id && (
-                  <Card className="mt-4 border-gray-200 dark:border-gray-700 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center mb-3">
-                        {section.risk === "medium" && (
-                          <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 mr-2">
-                            Verhandelbar
-                          </Badge>
+                        {/* KI-generierte Alternativen */}
+                        {section.alternativeFormulations && section.alternativeFormulations.length > 0 && (
+                          <div className="space-y-3 mb-6">
+                            {section.alternativeFormulations.map((alt) => (
+                              <div
+                                key={alt.id}
+                                className="p-3 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 bg-white dark:bg-gray-900/30 transition-colors group"
+                              >
+                                <p className="text-sm mb-2 whitespace-pre-wrap">{alt.content}</p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-blue-500 text-blue-600 hover:bg-blue-100/60 hover:text-blue-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
+                                  onClick={() => applyAlternativeFormulation(section.id, alt.id)}
+                                >
+                                  Diese Formulierung verwenden
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                        {section.risk === "high" && (
-                          <Badge variant="destructive" className="mr-2">
-                            Dringender Handlungsbedarf
-                          </Badge>
+                        {(!section.alternativeFormulations || section.alternativeFormulations.length === 0) && section.risk !== "low" && section.risk !== "error" &&  (
+                          <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm text-muted-foreground mb-6">
+                             Für diese Klausel wurden von der KI noch keine Alternativen vorgeschlagen. Sie können unten eine eigene Formulierung eingeben oder die Klausel mit KI optimieren lassen.
+                          </div>
                         )}
-                        <h3 className="text-base font-semibold">Alternative Formulierungen</h3>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Diese Klausel wurde in der Risikoanalyse als risikobehaftet eingestuft. Wählen Sie eine alternative Formulierung oder entfernen Sie die Klausel.
-                      </p>
 
-                      {/* KI-generierte Alternativen */}
-                      {section.alternativeFormulations && section.alternativeFormulations.length > 0 && (
-                        <div className="space-y-3 mb-6">
-                          {section.alternativeFormulations.map((alt) => (
-                            <div
-                              key={alt.id}
-                              className="p-3 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 bg-white dark:bg-gray-900/30 transition-colors group"
-                            >
-                              <p className="text-sm mb-2 whitespace-pre-wrap">{alt.content}</p>
+                        {/* Bereich für benutzerdefinierte Formulierung */}
+                        <div className="space-y-2 pt-4 border-t dark:border-gray-700">
+                          <h4 className="text-sm font-medium">Benutzerdefinierte Formulierung:</h4>
+                          <div className="relative">
+                            <Textarea 
+                              placeholder="Geben Sie Ihre eigene Formulierung für diese Klausel ein..."
+                              className="min-h-[100px] bg-white dark:bg-gray-900/30"
+                              id={`custom-formulation-${section.id}`} 
+                            />
+                            <div className="flex flex-col sm:flex-row gap-2 mt-3 justify-between items-stretch">
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="border-blue-500 text-blue-600 hover:bg-blue-100/60 hover:text-blue-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
-                                onClick={() => applyAlternativeFormulation(section.id, alt.id)}
+                                variant="destructive"
+                                className="gap-1 w-full sm:w-auto sm:mr-auto"
+                                onClick={() => handleRemoveClause(section.id)}
                               >
-                                Diese Formulierung verwenden
+                                <Trash className="h-4 w-4" />
+                                <span>Klausel entfernen</span>
                               </Button>
+                              
+                              <div className="flex gap-2 w-full sm:w-auto">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="gap-1 flex-grow sm:flex-grow-0"
+                                  onClick={() => {
+                                    const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
+                                    handleCustomFormulationSubmit(section.id, textarea?.value || '');
+                                  }}
+                                >
+                                  <Send className="h-4 w-4" />
+                                  <span>Einreichen</span>
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  className="gap-1 bg-destructive hover:bg-destructive/90 text-white flex-grow sm:flex-grow-0"
+                                  onClick={() => {
+                                    const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
+                                    const customText = textarea?.value;
+                                    // Rufe Optimierung NUR mit dem Text aus der Textarea auf, WENN er nicht leer ist.
+                                    if (customText && customText.trim() !== "") {
+                                      handleOptimizeWithAI(section.id, customText);
+                                    } else {
+                                      toast.info("Bitte geben Sie zuerst eine Formulierung in das Textfeld ein, um sie mit KI zu optimieren.");
+                                    }
+                                  }}
+                                  disabled={optimizingSectionId === section.id}
+                                >
+                                  {optimizingSectionId === section.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2"><path d="m3 21 3.05-9.16A2 2 0 0 1 7.98 10.5H10.5a2 2 0 0 1 1.83 1.26L15 21M21 3l-9.16 3.05a2 2 0 0 1-1.34.24L9 6.05M14.5 6.5l3 3M6.5 14.5l3 3"/></svg>
+                                  )}
+                                  <span>{optimizingSectionId === section.id ? "Optimiere..." : "Mit KI optimieren"}</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              ))}
+              {sections.length > 0 && (
+                   <Button onClick={addNewSection} variant="outline" className="w-full mt-4 gap-1" title="Neue Sektion hinzufügen (TODO)">
+                <Plus className="h-4 w-4" />
+                        <span>Neue Sektion hinzufügen (Funktion überdenken)</span>
+              </Button>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+        
+        <div className="w-96 flex-shrink-0">
+          <div className="flex flex-col h-full">
+              <div className="p-4 border-y rounded-t-md bg-gray-50 dark:bg-gray-800/30">
+                  <h4 className="font-medium mb-3 text-sm">Risikozusammenfassung</h4>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "high").length > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-muted'}`}>
+                          <p className={`font-bold ${sections.filter((s) => s.risk === "high").length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "high").length}</p>
+                          <p className="text-muted-foreground">Hoch</p>
+                      </div>
+                      <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "medium").length > 0 ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-muted'}`}>
+                          <p className={`font-bold ${sections.filter((s) => s.risk === "medium").length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "medium").length}</p>
+                          <p className="text-muted-foreground">Mittel</p>
+                      </div>
+                      <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-muted'}`}>
+                          <p className={`font-bold ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length}</p>
+                          <p className="text-muted-foreground">Niedrig</p>
+                      </div>
+                      {sections.filter((s) => s.risk === "error").length > 0 && (
+                          <div className="p-2 mt-2 rounded-md bg-destructive/10 text-center col-span-3 text-xs">
+                              <p className="font-bold text-destructive">{sections.filter((s) => s.risk === "error").length} Analysefehler</p>
+                          </div>
+                      )}
+                  </div>
+              </div>
+              
+              <ScrollArea className="flex-grow border rounded-b-md h-full">
+                  <div className="p-4 space-y-3">
+                      <h4 className="text-sm font-medium mb-4">Kritische Klauseln:</h4>
+                      {sections
+                          .filter((section) => section.needsRenegotiation || section.risk === "error")
+                          .map((section) => (
+                            <div
+                              key={`risk-${section.id}`}
+                              className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-shadow mb-3
+                              ${ 
+                              section.risk === "error" ? "bg-destructive/10 border-destructive/30 hover:border-destructive/50"
+                              : section.urgentAttention
+                                  ? "bg-red-100 border-red-300 hover:border-red-400 dark:bg-red-900/50 dark:border-red-700/50"
+                                  : "bg-amber-100 border-amber-300 hover:border-amber-400 dark:bg-amber-900/50 dark:border-amber-700/50"
+                              }`}
+                              onClick={() => {
+                                setActiveSectionId(section.id);
+                              }}
+                              onDoubleClick={() => {
+                                const targetElement = sectionRefs.current[section.id];
+                                const scrollAreaElement = editorScrollAreaRef.current;
+
+                                if (targetElement && scrollAreaElement) {
+                                  setActiveSectionId(section.id);
+
+                                  setTimeout(() => {
+                                    try {
+                                      const viewport = scrollAreaElement.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
+                                      
+                                      if (viewport) {
+                                        const elementTopRelativeToScrollParent = targetElement.offsetTop - viewport.offsetTop;
+                                        const desiredScrollTop = elementTopRelativeToScrollParent - 16;
+                                        
+                                        viewport.scrollTo({
+                                          top: Math.max(0, desiredScrollTop),
+                                          behavior: 'smooth'
+                                        });
+                                        
+                                        targetElement.classList.add('highlight-section');
+                                        setTimeout(() => {
+                                          targetElement.classList.remove('highlight-section');
+                                        }, 1500); 
+                                      } else {
+                                        targetElement.scrollIntoView({
+                                          behavior: 'smooth',
+                                          block: 'start' 
+                                        });
+                                        targetElement.classList.add('highlight-section');
+                                        setTimeout(() => {
+                                          targetElement.classList.remove('highlight-section');
+                                        }, 1500); 
+                                      }
+                                    } catch (error) {
+                                        console.error("Error during scrolling calculation or execution:", error);
+                                    }
+                                  }, 50); 
+                                }
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-start gap-3 min-w-0 flex-1">
+                                  {getRiskIcon(section.risk)}
+                                  <span className="font-medium text-sm break-words" title={section.title}>{section.title}</span>
+                                </div>
+                                <div className="flex-shrink-0 ml-2">
+                                  {section.risk !== "error" && (
+                                      section.urgentAttention ? (
+                                          <Badge variant="destructive" className="text-xs px-2 py-0.5 whitespace-nowrap">Dringend</Badge>
+                                      ) : section.risk === "medium" ? (
+                                          <Badge variant="outline" className="border-amber-300 bg-amber-200/50 text-amber-700 text-xs px-2 py-0.5 whitespace-nowrap">Verhandelbar</Badge>
+                                      ) : null
+                                  )}
+                                 </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-2 line-clamp-3" title={section.content}>{section.content}</p>
+                              {section.risk === "error" && section.reason && (
+                                   <p className="text-xs text-destructive/80 mt-2">Grund: {section.reason}</p>
+                              )}
                             </div>
                           ))}
-                        </div>
-                      )}
-                      {(!section.alternativeFormulations || section.alternativeFormulations.length === 0) && section.risk !== "low" && section.risk !== "error" &&  (
-                        <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm text-muted-foreground mb-6">
-                           Für diese Klausel wurden von der KI noch keine Alternativen vorgeschlagen. Sie können unten eine eigene Formulierung eingeben oder die Klausel mit KI optimieren lassen.
-                        </div>
-                      )}
-
-                      {/* Bereich für benutzerdefinierte Formulierung */}
-                      <div className="space-y-2 pt-4 border-t dark:border-gray-700">
-                        <h4 className="text-sm font-medium">Benutzerdefinierte Formulierung:</h4>
-                        <div className="relative">
-                          <Textarea 
-                            placeholder="Geben Sie Ihre eigene Formulierung für diese Klausel ein..."
-                            className="min-h-[100px] bg-white dark:bg-gray-900/30"
-                            id={`custom-formulation-${section.id}`} 
-                          />
-                          <div className="flex flex-col sm:flex-row gap-2 mt-3 justify-between items-stretch">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="gap-1 w-full sm:w-auto sm:mr-auto"
-                              onClick={() => handleRemoveClause(section.id)}
-                            >
-                              <Trash className="h-4 w-4" />
-                              <span>Klausel entfernen</span>
-                            </Button>
-                            
-                            <div className="flex gap-2 w-full sm:w-auto">
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="gap-1 flex-grow sm:flex-grow-0"
-                                onClick={() => {
-                                  const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
-                                  handleCustomFormulationSubmit(section.id, textarea?.value || '');
-                                }}
-                              >
-                                <Send className="h-4 w-4" />
-                                <span>Einreichen</span>
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                className="gap-1 bg-destructive hover:bg-destructive/90 text-white flex-grow sm:flex-grow-0"
-                                onClick={() => {
-                                  const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
-                                  const customText = textarea?.value;
-                                  // Rufe Optimierung NUR mit dem Text aus der Textarea auf, WENN er nicht leer ist.
-                                  if (customText && customText.trim() !== "") {
-                                    handleOptimizeWithAI(section.id, customText);
-                                  } else {
-                                    toast.info("Bitte geben Sie zuerst eine Formulierung in das Textfeld ein, um sie mit KI zu optimieren.");
-                                  }
-                                }}
-                                disabled={optimizingSectionId === section.id}
-                              >
-                                {optimizingSectionId === section.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2"><path d="m3 21 3.05-9.16A2 2 0 0 1 7.98 10.5H10.5a2 2 0 0 1 1.83 1.26L15 21M21 3l-9.16 3.05a2 2 0 0 1-1.34.24L9 6.05M14.5 6.5l3 3M6.5 14.5l3 3"/></svg>
-                                )}
-                                <span>{optimizingSectionId === section.id ? "Optimiere..." : "Mit KI optimieren"}</span>
-                              </Button>
-                            </div>
+                      {sections.filter((section) => section.needsRenegotiation || section.risk === "error").length === 0 && (
+                          <div className="p-4 text-center text-muted-foreground">
+                              <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
+                              <p className="text-sm">Keine kritischen Klauseln gefunden.</p>
                           </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            ))}
-            {sections.length > 0 && (
-                 <Button onClick={addNewSection} variant="outline" className="w-full mt-4 gap-1" title="Neue Sektion hinzufügen (TODO)">
-              <Plus className="h-4 w-4" />
-                    <span>Neue Sektion hinzufügen (Funktion überdenken)</span>
-            </Button>
-            )}
+                      )}
+                  </div>
+              </ScrollArea>
           </div>
-        </ScrollArea>
-      </div>
-
-     <div className="w-full md:w-1/3">
-        <div className="flex flex-col h-full border-l md:border-l-0 md:pl-4">
-            <div className="p-4 border-b">
-                <h3 className="font-semibold">Risikoanalyse des Vertrags</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Übersicht der Risikobewertung und kritischen Klauseln.
-                </p>
-            </div>
-            
-            <div className="p-4 border-y">
-                <h4 className="font-medium mb-3 text-sm">Risikozusammenfassung</h4>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "high").length > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "high").length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "high").length}</p>
-                        <p className="text-muted-foreground">Hoch</p>
-                    </div>
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "medium").length > 0 ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "medium").length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "medium").length}</p>
-                        <p className="text-muted-foreground">Mittel</p>
-                    </div>
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length}</p>
-                        <p className="text-muted-foreground">Niedrig</p>
-                    </div>
-                    {sections.filter((s) => s.risk === "error").length > 0 && (
-                        <div className="p-2 mt-2 rounded-md bg-destructive/10 text-center col-span-3 text-xs">
-                            <p className="font-bold text-destructive">{sections.filter((s) => s.risk === "error").length} Analysefehler</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-            
-            <ScrollArea className="flex-grow">
-                <div className="p-4 space-y-2">
-                    <h4 className="text-sm font-medium mb-2">Kritische Klauseln:</h4>
-                    {sections
-                        .filter((section) => section.needsRenegotiation || section.risk === "error")
-                        .map((section) => (
-                          <div
-                            key={`risk-${section.id}`}
-                            className={`p-3 border rounded-lg cursor-pointer hover:shadow-md transition-shadow 
-                            ${ 
-                            section.risk === "error" ? "bg-destructive/10 border-destructive/30 hover:border-destructive/50"
-                            : section.urgentAttention
-                                ? "bg-red-100 border-red-300 hover:border-red-400 dark:bg-red-900/50 dark:border-red-700/50"
-                                : "bg-amber-100 border-amber-300 hover:border-amber-400 dark:bg-amber-900/50 dark:border-amber-700/50"
-                            }`}
-                            onClick={() => {
-                              setActiveSectionId(section.id);
-                            }}
-                            onDoubleClick={() => {
-                              const targetElement = sectionRefs.current[section.id];
-                              const scrollAreaElement = editorScrollAreaRef.current;
-
-                              console.log(`Double-clicked section ${section.id}. Target element:`, targetElement, "ScrollArea element:", scrollAreaElement);
-
-                              if (targetElement && scrollAreaElement) {
-                                setActiveSectionId(section.id);
-
-                                setTimeout(() => {
-                                  try {
-                                    // Finde den Radix Viewport innerhalb der ScrollArea
-                                    const viewport = scrollAreaElement.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
-                                    console.log("Scroll viewport found:", viewport);
-
-                                    if (viewport) {
-                                      // Berechne die Position des Elements relativ zum Viewport
-                                      const elementTopRelativeToScrollParent = targetElement.offsetTop - viewport.offsetTop;
-                                      const desiredScrollTop = elementTopRelativeToScrollParent - 16; // 16px Abstand oben
-                                      
-                                      console.log(`Calculated scroll parameters: elementTop=${targetElement.offsetTop}, viewportTop=${viewport.offsetTop}, desiredScrollTop=${desiredScrollTop}`);
-
-                                      viewport.scrollTo({
-                                        top: Math.max(0, desiredScrollTop), // Sicherstellen, dass nicht negativ gescrollt wird
-                                        behavior: 'smooth'
-                                      });
-                                      
-                                      // Highlight hinzufügen
-                                      targetElement.classList.add('highlight-section');
-                                      setTimeout(() => {
-                                        targetElement.classList.remove('highlight-section');
-                                      }, 1500); 
-
-                                    } else {
-                                      console.warn("Radix scroll viewport not found. Falling back to scrollIntoView.");
-                                      // Fallback, falls der Viewport nicht gefunden wird
-                                      targetElement.scrollIntoView({
-                                        behavior: 'smooth',
-                                        block: 'start' 
-                                      });
-                                      // Highlight auch im Fallback hinzufügen
-                                      targetElement.classList.add('highlight-section');
-                                      setTimeout(() => {
-                                        targetElement.classList.remove('highlight-section');
-                                      }, 1500); 
-                                    }
-                                  } catch (error) {
-                                      console.error("Error during scrolling calculation or execution:", error);
-                                  }
-                                }, 50); 
-                              } else {
-                                console.warn(`Target element or ScrollArea element not found.`);
-                              }
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <div className="flex items-start gap-2 min-w-0 flex-1">
-                                {getRiskIcon(section.risk)}
-                                <span className="font-medium text-sm break-words" title={section.title}>{section.title}</span>
-                              </div>
-                              <div className="flex-shrink-0 ml-2">
-                                {section.risk !== "error" && (
-                                    section.urgentAttention ? (
-                                        <Badge variant="destructive" className="text-xs px-1.5 py-0.5 whitespace-nowrap">Dringend</Badge>
-                                    ) : section.risk === "medium" ? (
-                                        <Badge variant="outline" className="border-amber-300 bg-amber-200/50 text-amber-700 text-xs px-1.5 py-0.5 whitespace-nowrap">Verhandelbar</Badge>
-                                    ) : null
-                                )}
-                               </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-1 line-clamp-2" title={section.content}>{section.content}</p>
-                            {section.risk === "error" && section.reason && (
-                                 <p className="text-xs text-destructive/80 mt-1">Grund: {section.reason}</p>
-                            )}
-                          </div>
-                        ))}
-                    {sections.filter((section) => section.needsRenegotiation || section.risk === "error").length === 0 && (
-                        <div className="p-4 text-center text-muted-foreground">
-                            <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
-                            <p className="text-sm">Keine kritischen Klauseln gefunden.</p>
-                        </div>
-                    )}
-                </div>
-            </ScrollArea>
         </div>
       </div>
     </div>
