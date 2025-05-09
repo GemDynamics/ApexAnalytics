@@ -1,7 +1,10 @@
 import { Button } from "@/components/ui/button"
-import type React from "react"
+import React from "react"
 import Link from "next/link"
 import { Building2, Plus } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { UserButton, SignInButton, SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs"
+import { cn } from "@/lib/utils"
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -16,7 +19,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
             <div className="bg-primary p-1.5 rounded-md">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl">BauVertragsanalyse</span>
+            <Link href="/">
+              <span className="text-xl">BauVertragsanalyse</span>
+            </Link>
           </div>
           <nav className="flex items-center gap-4">
             <Link href="/">
@@ -37,7 +42,14 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            {/* ThemeToggle und Platzhalter-Profilbild wurden entfernt */}
+            <ThemeToggle />
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton />
+              <SignUpButton />
+            </SignedOut>
           </div>
         </div>
       </header>

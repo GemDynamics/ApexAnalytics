@@ -7,14 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
-import {
-  ClerkProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from "@clerk/nextjs"
+import { DashboardShell } from "@/components/dashboard-shell"
+import { ClerkProvider } from "@clerk/nextjs"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -44,29 +38,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <ConvexClientProvider>
               <TooltipProvider>
-                <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                  <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
-                    {/* Linke Seite - leer für Logo oder Navigation */}
-                    <div className="flex items-center gap-2">
-                      {/* Hier könnte ein Logo oder Navigationselemente kommen */}
-                    </div>
-                    
-                    {/* Rechte Seite - Auth-Buttons und Theme-Toggle */}
-                    <div className="flex items-center gap-2">
-                      <SignedOut>
-                        {/* Theme-Toggle vor den Auth-Buttons */}
-                        <ThemeToggle />
-                        <SignInButton />
-                        <SignUpButton />
-                      </SignedOut>
-                      <SignedIn>
-                        <ThemeToggle />
-                        <UserButton afterSignOutUrl="/" />
-                      </SignedIn>
-                    </div>
-                  </div>
-                </header>
-                <main className="flex-1">{children}</main>
+                <DashboardShell>{children}</DashboardShell>
               </TooltipProvider>
             </ConvexClientProvider>
           </ThemeProvider>

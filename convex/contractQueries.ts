@@ -1,0 +1,29 @@
+import { query } from "./_generated/server";
+import { ConvexError } from "convex/values";
+
+// Query zum Auflisten der Verträge für den aktuellen Benutzer
+export const listContracts = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      // Sollte nicht passieren, wenn Authentifizierung konfiguriert ist,
+      // aber zur Sicherheit eine leere Liste zurückgeben oder Fehler werfen.
+      // Werfen wir einen Fehler, da der Benutzer angemeldet sein sollte, um das Dashboard zu sehen.
+      throw new ConvexError("Benutzer nicht authentifiziert.");
+    }
+
+    // Verträge für den aktuellen Benutzer abrufen
+    // TODO: Später ggf. Paginierung hinzufügen, falls die Liste sehr lang wird.
+    const contracts = await ctx.db
+      .query("contracts")
+      // Annahme: Das Schema hat ein Feld wie `ownerId` oder `userId`, das die Clerk-ID speichert.
+      // Wir verwenden `identity.subject`, was die eindeutige ID des authentifizierten Benutzers ist.
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      // Sortieren nach Upload-Datum (oder Erstellungszeit), neueste zuerst
+      .order("desc") 
+      .collect();
+
+    return contracts;
+  },
+}); 

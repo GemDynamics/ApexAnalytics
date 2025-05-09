@@ -1,126 +1,238 @@
 "use client"
-import { useEffect } from "react"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { RecentAnalyses } from "@/components/recent-analyses"
-import { FileUpload } from "@/components/file-upload"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload } from "lucide-react"
 
-function HomePageClient() {
-  useEffect(() => {
-    // Check if we need to scroll to a target after navigation
-    const targetId = sessionStorage.getItem("scrollToTarget")
-    if (targetId) {
-      // Clear the flag
-      sessionStorage.removeItem("scrollToTarget")
-      // Wait a bit for the page to fully render
-      setTimeout(() => {
-        const targetElement = document.getElementById(targetId)
-        if (targetElement) {
-          targetElement.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          })
-        }
-      }, 100)
+import React, { useState } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { PlusCircle, FileText, UploadCloud, Loader2 } from "lucide-react"
+import { useQuery, useMutation, useAction } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { Id } from "@/convex/_generated/dataModel"
+import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+
+// Komponente für einzelne Vertrags-Items
+function ContractItem({ contract }: { contract: any }) {
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge variant="success">Abgeschlossen</Badge>
+      case "processing":
+      case "chunking":
+        return <Badge variant="warning" className="animate-pulse">In Bearbeitung</Badge>
+      case "pending":
+        return <Badge variant="default" className="border">Ausstehend</Badge>
+      case "failed":
+        return <Badge variant="danger">Fehlgeschlagen</Badge>
+      default:
+        return <Badge variant="default">{status}</Badge>
     }
-  }, [])
+  }
 
   return (
-    <DashboardShell>
-      <DashboardHeader
-        heading="Vertragsanalyse Dashboard"
-        text="Übersicht Ihrer Vertragsanalysen und Risikobewertungen"
-      />
-
-      <div className="grid gap-6">
-        {/* Kürzlich analysierte Verträge */}
-        <RecentAnalyses />
-
-        {/* Upload-Bereich */}
-        <Card className="bg-gradient-to-r from-primary/10 to-primary/5" id="upload-section">
-          <CardHeader>
-            <CardTitle>Neuen Vertrag analysieren</CardTitle>
-            <CardDescription>
-              Laden Sie einen Vertrag hoch, um eine detaillierte Risikoanalyse zu erhalten
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-card rounded-xl p-6 shadow-md">
-              <FileUpload />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 max-w-3xl mx-auto">
-              <div className="flex flex-col items-center text-center p-4">
-                <div className="rounded-full bg-primary/10 p-3 mb-3">
-                  <Upload className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-medium mb-1">Risikobewertung</h3>
-                <p className="text-sm text-muted-foreground">Farbkodierte Analyse der Vertragsklauseln</p>
-              </div>
-              <div className="flex flex-col items-center text-center p-4">
-                <div className="rounded-full bg-primary/10 p-3 mb-3">
-                  <svg
-                    className="h-6 w-6 text-primary"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M21 21H4.6C4.03995 21 3.75992 21 3.54601 20.891C3.35785 20.7951 3.20487 20.6422 3.10899 20.454C3 20.2401 3 20.9601 3 19.4V3"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M7 15L11 11L15 15L19 11"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <h3 className="font-medium mb-1">Risikoanalyse</h3>
-                <p className="text-sm text-muted-foreground">Visuelle Darstellung der Vertragsrisiken</p>
-              </div>
-              <div className="flex flex-col items-center text-center p-4">
-                <div className="rounded-full bg-primary/10 p-3 mb-3">
-                  <svg
-                    className="h-6 w-6 text-primary"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M12 8V16M8 12H16"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 2 12C2 6.47715 22 17.5228 6.47715 22 12 22Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </div>
-                <h3 className="font-medium mb-1">Verhandlungseinblicke</h3>
-                <p className="text-sm text-muted-foreground">
-                  Wahrscheinlichkeitsanalyse für erfolgreiche Verhandlungen
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <Link href={`/analytik/${contract._id}`} className="block hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors">
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate" title={contract.fileName}>{contract.fileName}</p>
+            <p className="text-xs text-muted-foreground">
+              Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+            </p>
+          </div>
+        </div>
+        <div className="ml-4 flex-shrink-0">
+          {getStatusBadge(contract.status)}
+        </div>
       </div>
-    </DashboardShell>
+    </Link>
   )
 }
 
-// Export the client component as the default
+// Upload-Komponente
+function ContractUploadForm() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const generateUploadUrl = useMutation(api.contractMutations.generateUploadUrl)
+  const createContractRecord = useMutation(api.contractMutations.createContractRecord)
+  const startAnalysisAction = useAction(api.contractActions.startFullContractAnalysis)
+  const router = useRouter()
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validierung (Typ, Größe)
+      const allowedTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"]
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Ungültiger Dateityp. Bitte PDF, DOCX oder TXT hochladen.")
+        setSelectedFile(null)
+        event.target.value = "" // Reset file input
+        return
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10 MB
+        toast.error("Datei zu groß. Maximal 10MB erlaubt.")
+        setSelectedFile(null)
+        event.target.value = "" // Reset file input
+        return
+      }
+      setSelectedFile(file)
+    }
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast.info("Bitte wählen Sie zuerst eine Datei aus.")
+      return
+    }
+
+    setIsUploading(true)
+    const uploadToastId = toast.loading("Datei wird hochgeladen...")
+
+    try {
+      // 1. Upload URL von Convex holen
+      const postUrl = await generateUploadUrl({})
+
+      // 2. Datei zur URL hochladen
+      const result = await fetch(postUrl.uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": selectedFile.type },
+        body: selectedFile,
+      })
+      const { storageId } = await result.json()
+
+      if (!result.ok || !storageId) {
+        throw new Error(`Upload fehlgeschlagen: ${result.statusText}`)
+      }
+      const typedStorageId = storageId as Id<"_storage"> // Type assertion for clarity
+
+      toast.loading("Vertrag wird in der Datenbank gespeichert...", { id: uploadToastId })
+
+      // 3. Contract Record in DB erstellen
+      const contractId = await createContractRecord({ 
+        fileName: selectedFile.name, 
+        storageId: typedStorageId 
+      })
+
+      toast.loading("Vertragsanalyse wird gestartet...", { id: uploadToastId })
+      
+      // 4. Analyse-Action starten (asynchron) mit contractId und storageId
+      await startAnalysisAction({ 
+        contractId: contractId, 
+        storageId: typedStorageId 
+      })
+
+      toast.success("Vertrag erfolgreich hochgeladen und Analyse gestartet!", { id: uploadToastId })
+      setSelectedFile(null)
+      // Optional: Direkt zur Analyse-Seite weiterleiten?
+      // router.push(`/analytik/${contractId}`); 
+       // Aktuell nicht, damit der User sieht, dass der Upload ok war.
+
+    } catch (error) {
+      console.error("Fehler beim Hochladen:", error)
+      toast.error("Fehler beim Hochladen.", { 
+        id: uploadToastId,
+        description: error instanceof Error ? error.message : "Unbekannter Fehler"
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  return (
+    <Card className="bg-muted/30 dark:bg-muted/10 border-dashed border-primary/30">
+      <CardHeader>
+        <CardTitle className="text-lg">Neuen Vertrag analysieren</CardTitle>
+        <CardDescription>
+          Laden Sie einen Vertrag hoch, um eine detaillierte Risikoanalyse zu erhalten
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 p-4 border rounded-md bg-background">
+            <label htmlFor="file-upload" className="flex-grow cursor-pointer">
+              <span className="text-sm font-medium">
+                {selectedFile ? selectedFile.name : "Datei auswählen"}
+              </span>
+              <input 
+                id="file-upload" 
+                name="file-upload" 
+                type="file" 
+                className="sr-only" 
+                onChange={handleFileChange}
+                accept=".pdf,.docx,.txt"
+                disabled={isUploading}
+              />
+            </label>
+            {!selectedFile && <span className="text-sm text-muted-foreground">Keine Datei ausgewählt</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Unterstützte Dateiformate: PDF, DOCX, TXT (max. 10MB)
+          </p>
+          <Button onClick={handleUpload} disabled={!selectedFile || isUploading} className="gap-2">
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" /> 
+            ) : (
+              <UploadCloud className="h-4 w-4" />
+            )}
+            <span>{isUploading ? "Wird hochgeladen..." : "Hochladen & Analysieren"}</span>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Haupt-Dashboard Komponente
 export default function HomePage() {
-  return <HomePageClient />
+  const contracts = useQuery(api.contractQueries.listContracts)
+
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-screen-lg">
+      {/* Header der Seite (nicht der App-Header) */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Vertragsanalyse Dashboard</h1>
+        <p className="text-muted-foreground">
+          Übersicht Ihrer Vertragsanalysen und Risikobewertungen
+        </p>
+      </div>
+
+      {/* Hauptinhalt in zwei Spalten oder untereinander */}
+      <div className="grid grid-cols-1 gap-8">
+        {/* Letzte Analysen */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Letzte Analysen</CardTitle>
+            <CardDescription>
+              Ihre zuletzt hochgeladenen und analysierten Verträge.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {contracts === undefined && (
+                // Ladezustand
+                <div className="space-y-3">
+                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
+                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
+                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
+                </div>
+              )}
+              {contracts && contracts.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Noch keine Verträge analysiert.
+                </p>
+              )}
+              {contracts && contracts.map((contract) => (
+                <ContractItem key={contract._id} contract={contract} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Neuer Vertrag analysieren */}
+        <ContractUploadForm />
+
+      </div>
+    </div>
+  )
 }

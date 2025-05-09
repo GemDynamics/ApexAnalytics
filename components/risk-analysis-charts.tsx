@@ -16,58 +16,135 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
+  Tooltip,
+  Legend,
 } from "recharts"
 import { ChartAnimationWrapper } from "@/components/chart-animation-wrapper"
+import type { EditorSection } from "./contract-editor-with-contract"
+import { useMemo } from "react"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 
-export function RiskAnalysisCharts() {
-  // Beispieldaten für die Risikoanalyse
-  const riskByCategory = [
-    { name: "Vertragsstrafen", risk: 85 },
-    { name: "Haftung", risk: 80 },
-    { name: "Zahlungsbedingungen", risk: 55 },
-    { name: "Kündigung", risk: 50 },
-    { name: "Gewährleistung", risk: 25 },
-    { name: "Abnahme", risk: 20 },
-  ]
+interface RiskAnalysisChartsProps {
+  contract: Doc<"contracts"> | undefined;
+}
 
-  const riskDistribution = [
-    { name: "Hohes Risiko", value: 2, color: "#b91c1c" }, // Darker red
-    { name: "Mittleres Risiko", value: 2, color: "#d97706" }, // Darker amber
-    { name: "Niedriges Risiko", value: 2, color: "#15803d" }, // Darker green
-  ]
+export function RiskAnalysisCharts({ contract }: RiskAnalysisChartsProps) {
+  // Transformieren der Vertragsdaten in EditorSection-Format für die Charts
+  const analysisData: EditorSection[] = useMemo(() => {
+    if (!contract?.analysisProtocol) {
+      return [];
+    }
 
-  const riskRadarData = [
-    { subject: "Finanziell", A: 80, fullMark: 100 },
-    { subject: "Rechtlich", A: 65, fullMark: 100 },
-    { subject: "Zeitlich", A: 45, fullMark: 100 },
-    { subject: "Technisch", A: 30, fullMark: 100 },
-    { subject: "Operativ", A: 55, fullMark: 100 },
-  ]
+    return contract.analysisProtocol.map((clause, index) => {
+      // Risiko-Mapping
+      let riskLevel: "low" | "medium" | "high" | "error" = "low";
+      switch (clause.evaluation.toLowerCase()) {
+        case "rot":
+          riskLevel = "high";
+          break;
+        case "gelb":
+          riskLevel = "medium";
+          break;
+        case "grün":
+          riskLevel = "low";
+          break;
+        case "fehler":
+          riskLevel = "error";
+          break;
+      }
+
+      return {
+        id: `chart-clause-${clause.chunkNumber || '0'}-${index}`,
+        title: `Klausel ${index + 1}`,
+        content: clause.clauseText,
+        risk: riskLevel,
+        evaluation: clause.evaluation,
+        reason: clause.reason,
+        recommendation: clause.recommendation,
+        needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
+        urgentAttention: riskLevel === "high",
+        chunkNumber: clause.chunkNumber,
+      };
+    });
+  }, [contract]);
+
+  const { riskByCategory, riskDistribution, riskRadarData } = useMemo(() => {
+    if (!analysisData || analysisData.length === 0) {
+      return { riskByCategory: [], riskDistribution: [], riskRadarData: [] }
+    }
+
+    // 1. Risiko nach Kategorie (Beispiel: Aggregation nach Titel - vereinfacht)
+    //    In einer echten Anwendung wäre eine bessere Kategorisierung nötig.
+    const categoryCounts: { [key: string]: { high: number; medium: number; low: number; error: number; total: number } } = {}
+    analysisData.forEach(section => {
+      // Einfache Kategorisierung nach dem ersten Wort des Titels oder dem Chunk
+      const categoryName = section.title.split(" ")[0] === "Klausel" ? `Chunk ${section.chunkNumber || 'Unbekannt'}` : section.title.split(" ")[0]
+      if (!categoryCounts[categoryName]) {
+        categoryCounts[categoryName] = { high: 0, medium: 0, low: 0, error: 0, total: 0 }
+      }
+      // Ensure section.risk is a valid key
+      if (categoryCounts[categoryName].hasOwnProperty(section.risk)) {
+        categoryCounts[categoryName][section.risk]++
+      }
+      categoryCounts[categoryName].total++
+    })
+    const calculatedRiskByCategory = Object.entries(categoryCounts).map(([name, counts]) => {
+      // Einfache Risikoberechnung (gewichteter Durchschnitt - anpassbar)
+      const score = ((counts.high * 100) + (counts.medium * 50) + (counts.error * 100)) / counts.total
+      return { name, risk: Math.min(100, Math.round(score || 0)) } // Auf 100 begrenzen
+    }).sort((a, b) => b.risk - a.risk) // Nach Risiko sortieren
+
+    // 2. Risikoverteilung
+    const calculatedRiskDistribution = [
+      { name: "Hohes Risiko", value: analysisData.filter(s => s.risk === "high").length, color: "#ef4444" }, // Tailwind red-500
+      { name: "Mittleres Risiko", value: analysisData.filter(s => s.risk === "medium").length, color: "#f59e0b" }, // Tailwind amber-500
+      { name: "Niedriges Risiko", value: analysisData.filter(s => s.risk === "low").length, color: "#22c55e" }, // Tailwind green-500
+      { name: "Analysefehler", value: analysisData.filter(s => s.risk === "error").length, color: "#71717a" }, // Tailwind zinc-500
+    ].filter(item => item.value > 0) // Nur Kategorien mit Wert anzeigen
+
+    // 3. Risiko-Radar-Analyse (Beispiel: Annahme fester Kategorien)
+    const highRiskCount = analysisData.filter(s => s.risk === "high").length
+    const mediumRiskCount = analysisData.filter(s => s.risk === "medium").length
+    const totalRiskSections = analysisData.filter(s => s.risk === "high" || s.risk === "medium").length // Korrektur: Gesamtzahl der Risiko-Sektionen
+    const calculatedRiskRadarData = [
+      { subject: "Finanziell", A: Math.min(100, Math.round((highRiskCount * 0.7 + mediumRiskCount * 0.3) * (100 / (totalRiskSections || 1)))), fullMark: 100 },
+      { subject: "Rechtlich", A: Math.min(100, Math.round((highRiskCount * 0.8 + mediumRiskCount * 0.2) * (100 / (totalRiskSections || 1)))), fullMark: 100 },
+      { subject: "Zeitlich", A: Math.min(100, Math.round((highRiskCount * 0.4 + mediumRiskCount * 0.6) * (100 / (totalRiskSections || 1)))), fullMark: 100 },
+      { subject: "Technisch", A: Math.min(100, Math.round((highRiskCount * 0.2 + mediumRiskCount * 0.3) * (100 / (totalRiskSections || 1)))), fullMark: 100 },
+      { subject: "Operativ", A: Math.min(100, Math.round((highRiskCount * 0.5 + mediumRiskCount * 0.5) * (100 / (totalRiskSections || 1)))), fullMark: 100 },
+    ]
+
+    return { 
+      riskByCategory: calculatedRiskByCategory, 
+      riskDistribution: calculatedRiskDistribution, 
+      riskRadarData: calculatedRiskRadarData 
+    }
+  }, [analysisData])
+
+  if (!analysisData || analysisData.length === 0) {
+    return (
+      <div className="text-center p-8 text-muted-foreground min-h-[300px] flex items-center justify-center">
+        Keine Analysedaten für Diagramme verfügbar.
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-4">Risiko nach Kategorie</h3>
+            <h3 className="text-lg font-semibold mb-4 text-center">Risiko nach Kategorie</h3>
             <ChartAnimationWrapper className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
                   <CartesianGrid horizontal strokeDasharray="3 3" />
-                  <XAxis type="number" domain={[0, 100]} />
-                  <YAxis dataKey="name" type="category" width={90} />
-                  <Bar
-                    dataKey="risk"
-                    radius={[0, 4, 4, 0]}
-                    barSize={20}
-                    label={{ position: "right", formatter: (value: number) => `${value}%`, fill: "#888", fontSize: 12 }}
-                    animationDuration={1500}
-                  >
+                  <XAxis type="number" domain={[0, 100]} stroke="#888888" fontSize={12} />
+                  <YAxis dataKey="name" type="category" width={90} stroke="#888888" fontSize={12} />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', borderRadius: '0.5rem' }} itemStyle={{color: '#333'}}/>
+                  <Bar dataKey="risk" radius={[0, 4, 4, 0]} barSize={20} label={{ position: "right", formatter: (value: number) => `${value}%`, fill: "#666", fontSize: 12 }} animationDuration={1500}>
                     {riskByCategory.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={entry.risk >= 70 ? "#b91c1c" : entry.risk >= 50 ? "#d97706" : "#15803d"}
-                      />
+                      <Cell key={`cell-${index}`} fill={entry.risk >= 70 ? "#ef4444" : entry.risk >= 50 ? "#f59e0b" : "#22c55e"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -78,26 +155,17 @@ export function RiskAnalysisCharts() {
 
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold mb-4">Risikoverteilung</h3>
+            <h3 className="text-lg font-semibold mb-4 text-center">Risikoverteilung</h3>
             <ChartAnimationWrapper className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                  <Pie
-                    data={riskDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={true}
-                    animationDuration={1500}
-                  >
+                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}> {/* Adjusted margins */}
+                  <Pie data={riskDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value" labelLine={false} label={({ name, percent, value }) => value > 0 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}  animationDuration={1500}>
                     {riskDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', borderRadius: '0.5rem' }}/>
+                  <Legend wrapperStyle={{fontSize: "12px", paddingTop: "10px"}}/>
                 </PieChart>
               </ResponsiveContainer>
             </ChartAnimationWrapper>
@@ -107,14 +175,16 @@ export function RiskAnalysisCharts() {
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-lg font-semibold mb-4">Risiko-Radar-Analyse</h3>
+          <h3 className="text-lg font-semibold mb-4 text-center">Risiko-Radar-Analyse</h3>
           <ChartAnimationWrapper className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={riskRadarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                <PolarGrid stroke="#e5e7eb" />
+                <PolarAngleAxis dataKey="subject" stroke="#888888" fontSize={12} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#e5e7eb" fontSize={10} />
                 <Radar name="Risikolevel" dataKey="A" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.6} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', borderRadius: '0.5rem' }}/>
+                <Legend wrapperStyle={{fontSize: "12px", paddingTop: "10px"}}/>
               </RadarChart>
             </ResponsiveContainer>
           </ChartAnimationWrapper>

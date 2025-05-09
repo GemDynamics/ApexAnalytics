@@ -10,6 +10,7 @@ import { ContractsList } from "@/components/contracts-list"
 import { Input } from "@/components/ui/input"
 import { NegotiationSimulator } from "@/components/negotiation-simulator"
 import { ContractEditorWithContract } from "@/components/contract-editor-with-contract"
+import type { Id } from "@/convex/_generated/dataModel"
 
 interface AnalyticsLayoutProps {
   children: React.ReactNode
@@ -76,7 +77,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "analyse" }
               <Input type="search" placeholder="Verträge durchsuchen..." className="pl-8" />
             </div>
             <Button className="w-full mb-4 rounded-full">Neue Analyse</Button>
-            <ContractsList onContractClick={() => {}} />
+            <ContractsList />
           </div>
           {isListCollapsed && (
             <div className="absolute left-0 top-0 h-full border-r border-border bg-background/80 backdrop-blur-sm w-16 flex flex-col items-center py-4 gap-4 rounded-r-lg shadow-sm">
@@ -114,7 +115,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "analyse" }
               <TabsContent value="verhandlung" className="mt-0">
                 {contractId ? (
                   <div className="negotiation-content">
-                    <NegotiationSimulator contractId={contractId} />
+                    <NegotiationSimulator contractId={contractId as Id<"contracts">} />
                   </div>
                 ) : (
                   <div className="text-center text-muted-foreground py-8">
@@ -125,7 +126,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "analyse" }
               <TabsContent value="editor" className="mt-0">
                 {contractId ? (
                   <div className="contract-editor-content">
-                    <ContractEditorWithContract contractId={contractId} />
+                    <ContractEditorWithContract contractId={contractId as Id<"contracts">} />
                   </div>
                 ) : (
                   <div className="text-center text-muted-foreground py-8">

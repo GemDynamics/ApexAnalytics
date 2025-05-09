@@ -17,7 +17,7 @@ export const getContractById = query({
     }
 
     // Prüfen, ob der authentifizierte Benutzer der Eigentümer des Vertrags ist
-    if (contract.ownerId !== identity.subject) {
+    if (contract.userId !== identity.subject) {
       // Nicht autorisiert, den Vertrag nicht zurückgeben
       return null;
     }
@@ -35,7 +35,7 @@ export const listUserContracts = query({
         }
         return await ctx.db
             .query("contracts")
-            .withIndex("by_ownerId", (q) => q.eq("ownerId", identity.subject))
+            .withIndex("by_user", (q) => q.eq("userId", identity.subject))
             .order("desc") 
             .collect();
     },

@@ -20,8 +20,12 @@ import {
   Building,
   HardHat,
   ChevronDown,
+  Loader2,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useContract } from "@/hooks/useConvex"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
+import type { EditorSection } from "./contract-editor-with-contract"
 
 type Message = {
   role: "user" | "assistant"
@@ -37,8 +41,18 @@ type Feedback = {
   timestamp: Date
 }
 
+interface SimulatorClause {
+  id: string
+  section: string
+  title: string
+  content: string
+  risk: EditorSection["risk"]
+  goal: string
+  notes?: string
+}
+
 interface NegotiationSimulatorProps {
-  contractId?: string
+  contractId: Id<"contracts">
 }
 
 export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) {
@@ -53,63 +67,56 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
   const [clauseNotes2, setClauseNotes2] = useState("")
   const [clauseNotes3, setClauseNotes3] = useState("")
 
-  // Add simulated historical feedback entries
-  const [feedbackHistory, setFeedbackHistory] = useState<Feedback[]>([
-    {
-      score: 65,
-      strengths: [
-        "Gute Vorbereitung auf die Verhandlung",
-        "Sachliche Argumentation bei Vertragsstrafen",
-        "Höflicher Umgangston während der gesamten Verhandlung",
-      ],
-      improvements: [
-        "Zu schnelles Nachgeben bei kritischen Punkten",
-        "Fehlende konkrete Gegenvorschläge bei der Haftungsbegrenzung",
-        "Zu wenig Bezug auf Branchenstandards und Referenzprojekte",
-      ],
-      emotionalInsights: [
-        "Teilweise unsicheres Auftreten bei Gegenargumenten",
-        "Gute Balance zwischen Durchsetzungsvermögen und Kompromissbereitschaft",
-        "Positive Grundhaltung trotz schwieriger Verhandlungspunkte",
-      ],
-      timestamp: new Date(2023, 11, 15, 14, 30), // 15. Dezember 2023, 14:30
-    },
-    {
-      score: 42,
-      strengths: ["Klare Darstellung der eigenen Position", "Gute Kenntnis der Vertragsdetails"],
-      improvements: [
-        "Zu konfrontative Kommunikation bei Meinungsverschiedenheiten",
-        "Mangelnde Flexibilität bei Kompromissvorschlägen",
-        "Unzureichende Vorbereitung auf Gegenargumente",
-        "Zu starker Fokus auf eigene Interessen statt Win-Win-Lösungen",
-      ],
-      emotionalInsights: [
-        "Sichtbare Frustration bei Widerspruch",
-        "Wenig Empathie für die Position des Bauherrn",
-        "Defensive Körpersprache in kritischen Momenten",
-      ],
-      timestamp: new Date(2024, 0, 22, 10, 15), // 22. Januar 2024, 10:15
-    },
-    {
-      score: 58,
-      strengths: [
-        "Verbesserte Vorbereitung im Vergleich zur letzten Simulation",
-        "Gute Reaktion auf unerwartete Einwände",
-        "Konstruktive Lösungsvorschläge bei Zahlungsbedingungen",
-      ],
-      improvements: [
-        "Noch immer zu wenig konkrete Zahlen und Fakten",
-        "Unklare Priorisierung der Verhandlungspunkte",
-        "Zu lange Redebeiträge, die vom Kern ablenken",
-      ],
-      emotionalInsights: [
-        "Deutlich verbesserte emotionale Kontrolle",
-        "Guter Aufbau von Rapport zu Beginn des Gesprächs",
-        "Noch Verbesserungspotenzial bei nonverbaler Kommunikation",
-      ],
-      timestamp: new Date(2024, 2, 8, 16, 45), // 8. März 2024, 16:45
-    },
-  ])
+  const [simulatorClauses, setSimulatorClauses] = useState<SimulatorClause[]>([])
+  const [isLoadingContract, setIsLoadingContract] = useState(true)
+
+  const { contract } = useContract(contractId)
+
+  useEffect(() => {
+    if (contract && contract.analysisProtocol) {
+      const relevantClauses = contract.analysisProtocol
+        .map((clause, index): EditorSection => {
+          let riskLevel: EditorSection["risk"] = "low"
+          switch (clause.evaluation.toLowerCase()) {
+            case "rot": riskLevel = "high"
+              break
+            case "gelb": riskLevel = "medium"
+              break
+            case "grün": riskLevel = "low"
+              break
+            case "fehler": riskLevel = "error"
+              break
+          }
+          return {
+            id: `clause-${clause.chunkNumber || '0'}-${index}`,
+            title: `Klausel (Chunk ${clause.chunkNumber || 'N/A'}, Index ${index + 1})`,
+            content: clause.clauseText,
+            risk: riskLevel,
+            evaluation: clause.evaluation,
+            reason: clause.reason,
+            recommendation: clause.recommendation,
+            needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
+            urgentAttention: riskLevel === "high",
+            chunkNumber: clause.chunkNumber,
+          }
+        })
+        .filter(editorSection => editorSection.risk === "high" || editorSection.risk === "medium")
+        .map((editorSection): SimulatorClause => ({
+          id: editorSection.id,
+          section: `Chunk ${editorSection.chunkNumber || 'N/A'} / Risiko: ${editorSection.evaluation}`,
+          title: editorSection.title,
+          content: editorSection.content,
+          risk: editorSection.risk,
+          goal: editorSection.recommendation || "Eigenes Ziel definieren...",
+          notes: ""
+        }))
+      setSimulatorClauses(relevantClauses)
+      setIsLoadingContract(false)
+    } else if (contract === null) {
+      setIsLoadingContract(false)
+      setSimulatorClauses([])
+    }
+  }, [contract])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -208,7 +215,6 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
     }
 
     setFeedback(newFeedback)
-    setFeedbackHistory((prevHistory) => [...prevHistory, newFeedback])
   }
 
   // Reset the simulation
@@ -220,41 +226,27 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
   }
 
   // Dynamisch Klauseldaten basierend auf der Contract-ID laden
-  const getClauseData = () => {
-    // In einer echten Anwendung würden diese Daten aus einer API oder Datenbank geladen
-    // Hier verwenden wir Beispieldaten
-    return [
-      {
-        id: 1,
-        section: "§3 Abs. 2",
-        title: "Vertragsstrafen",
-        content:
-          "Bei Überschreitung der vereinbarten Fertigstellungstermine wird eine Vertragsstrafe in Höhe von 0,3% der Auftragssumme pro Werktag, maximal jedoch 10% der Auftragssumme, fällig.",
-        risk: "high",
-        goal: "Reduzierung auf 0,1% pro Werktag mit einer Obergrenze von 5% der Auftragssumme.",
-      },
-      {
-        id: 2,
-        section: "§9 Abs. 3",
-        title: "Haftungsbegrenzung",
-        content:
-          "Der Auftragnehmer haftet unbegrenzt für alle Schäden, die durch seine Leistungen verursacht werden, einschließlich Folgeschäden und entgangenen Gewinn.",
-        risk: "high",
-        goal: "Einführung einer Haftungsbegrenzung auf die Höhe der Auftragssumme für Folgeschäden und entgangenen Gewinn.",
-      },
-      {
-        id: 3,
-        section: "§5 Abs. 1",
-        title: "Zahlungsbedingungen",
-        content:
-          "Die Zahlung erfolgt nach Baufortschritt in Raten: 20% bei Baubeginn, 30% nach Fertigstellung des Rohbaus, 40% nach Fertigstellung der Installationen, 10% nach Endabnahme. Die Zahlungsfrist beträgt 30 Tage nach Rechnungseingang.",
-        risk: "medium",
-        goal: "Verkürzung der Zahlungsfrist auf 14 Tage nach Rechnungseingang.",
-      },
-    ]
+  // const getClauseData = () => { ... } // Wird durch useEffect ersetzt
+
+  // const clauseData = getClauseData(); // Wird durch simulatorClauses ersetzt
+
+  // Funktion zum Aktualisieren der Notizen für eine Klausel
+  const updateClauseNote = (clauseId: string, newNote: string) => {
+    setSimulatorClauses(prevClauses => 
+      prevClauses.map(clause => 
+        clause.id === clauseId ? { ...clause, notes: newNote } : clause
+      )
+    )
   }
 
-  const clauseData = getClauseData()
+  if (isLoadingContract) {
+    return (
+      <div className="flex items-center justify-center h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Verhandlungsdaten werden geladen...</p>
+      </div>
+    )
+  }
 
   return (
     <Card className="shadow-sm">
@@ -331,13 +323,13 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">Zu verhandelnde Klauseln</label>
-                <Badge variant="outline" className="text-primary">
+                <Badge className="text-primary">
                   Aus Analyse übernommen
                 </Badge>
               </div>
 
               <div className="space-y-4">
-                {clauseData.map((clause) => (
+                {simulatorClauses.length > 0 ? simulatorClauses.map((clause) => (
                   <Card key={clause.id}>
                     <CardHeader className="py-3">
                       <div className="flex items-center gap-2">
@@ -360,25 +352,18 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
                         <Textarea
                           placeholder="Notieren Sie Ihre Argumente und Strategie für diese Klausel..."
                           className="min-h-[80px]"
-                          value={
-                            clause.id === 1
-                              ? clauseNotes1
-                              : clause.id === 2
-                                ? clauseNotes2
-                                : clause.id === 3
-                                  ? clauseNotes3
-                                  : ""
-                          }
-                          onChange={(e) => {
-                            if (clause.id === 1) setClauseNotes1(e.target.value)
-                            else if (clause.id === 2) setClauseNotes2(e.target.value)
-                            else if (clause.id === 3) setClauseNotes3(e.target.value)
-                          }}
+                          value={clause.notes}
+                          onChange={(e) => updateClauseNote(clause.id, e.target.value)}
                         />
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                )) : (
+                  <div className="p-4 text-center text-muted-foreground border rounded-md">
+                    <Info className="mx-auto h-6 w-6 mb-2" />
+                    Für diesen Vertrag wurden keine kritischen Klauseln (hoch/mittel Risiko) zur Verhandlungsvorbereitung gefunden.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -455,13 +440,13 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
                   }
                 }}
               />
-              <Button size="icon" onClick={sendMessage}>
+              <Button className="w-10 h-10" onClick={sendMessage}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button variant="outline" onClick={resetSimulation}>
+            <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground" onClick={resetSimulation}>
               Zurücksetzen
             </Button>
             <Button onClick={endSimulation}>Simulation beenden & Feedback erhalten</Button>
@@ -564,79 +549,10 @@ export function NegotiationSimulator({ contractId }: NegotiationSimulatorProps) 
                     <Clock className="h-5 w-5 text-primary" />
                     <span className="font-medium">Nächste Übung empfohlen in:</span>
                   </div>
-                  <Badge variant="outline" className="text-primary">
+                  <Badge className="text-primary">
                     2 Tagen
                   </Badge>
                 </div>
-                {feedbackHistory.length > 1 && (
-                  <div className="mt-8">
-                    <h3 className="text-lg font-medium mb-4">Feedback-Verlauf</h3>
-                    <div className="space-y-2">
-                      {feedbackHistory
-                        .slice(0, -1)
-                        .reverse()
-                        .map((historicalFeedback, index) => (
-                          <Collapsible key={index} className="border rounded-lg">
-                            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover:bg-muted/50">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span>
-                                  Feedback vom {historicalFeedback.timestamp.toLocaleDateString()} um{" "}
-                                  {historicalFeedback.timestamp.toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{historicalFeedback.score}/100</span>
-                                <ChevronDown className="h-4 w-4 transition-transform ui-open:rotate-180" />
-                              </div>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <div className="p-4 pt-0 border-t">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                  <div>
-                                    <h4 className="font-medium mb-2">Stärken</h4>
-                                    <ul className="space-y-1">
-                                      {historicalFeedback.strengths.map((strength, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                                          <span className="text-sm">{strength}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-medium mb-2">Verbesserungspotenzial</h4>
-                                    <ul className="space-y-1">
-                                      {historicalFeedback.improvements.map((improvement, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                                          <span className="text-sm">{improvement}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h4 className="font-medium mb-2">Emotionale Intelligenz & Kommunikation</h4>
-                                  <ul className="space-y-1">
-                                    {historicalFeedback.emotionalInsights.map((insight, i) => (
-                                      <li key={i} className="flex items-start gap-2">
-                                        <Lightbulb className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                                        <span className="text-sm">{insight}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              </div>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
               <CardFooter>
                 <Button onClick={resetSimulation} className="w-full">

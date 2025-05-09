@@ -75,8 +75,8 @@ export function ContractsList() {
                         <p className="text-xs text-muted-foreground">
                           Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
                         </p>
-                      </div>
-                    </div>
+            </div>
+            </div>
                     <Badge 
                       variant={getStatusVariant(contract.status)}
                       className={contract.status === 'completed' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
@@ -86,10 +86,10 @@ export function ContractsList() {
                       ) : null}
                       {getStatusText(contract.status)}
                     </Badge>
-                  </div>
+          </div>
                 </Link>
-              ))}
-            </div>
+        ))}
+      </div>
           ) : (
             <p className="text-center text-muted-foreground py-8">Noch keine Verträge hochgeladen.</p>
           )}

@@ -13,7 +13,7 @@ interface ContractClausesProps {
   clauses: AnalysisClause[];
 }
 
-export function ContractClauses({ clauses }: ContractClausesProps) {
+export function ContractClauses({ clauses = [] }: ContractClausesProps) {
   const [openClauseId, setOpenClauseId] = useState<string | null>(null);
 
   // Hilfsfunktionen für Risikobewertung (adaptiert)

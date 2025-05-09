@@ -2,23 +2,25 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, FileText, X, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { useUploadAndAnalyzeContract } from "@/hooks/useConvex"
+import { useUploadContract, useAnalyzeContract } from "@/hooks/useConvex"
+import { useToast } from "@/components/ui/use-toast"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 export function FileUpload() {
   const router = useRouter()
   const [isDragging, setIsDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Convex-Hook für Upload und Analyse
-  const uploadAndAnalyzeContract = useUploadAndAnalyzeContract();
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { upload, isUploading, uploadProgress, error } = useUploadContract()
+  const analyzeContract = useAnalyzeContract()
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -32,167 +34,189 @@ export function FileUpload() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    setError(null)
-
+    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0]
-      if (
-        droppedFile.type === "application/pdf" ||
-        droppedFile.type === "application/msword" ||
-        droppedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        droppedFile.type === "text/plain" // Unterstützung für txt Dateien
-      ) {
-        setFile(droppedFile)
-      } else {
-        setError("Bitte laden Sie nur PDF, Word oder TXT-Dokumente hoch.")
+      
+      // Validiere Dateityp
+      const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
+      if (!allowedTypes.includes(droppedFile.type)) {
+        toast({
+          title: "Ungültiges Dateiformat",
+          description: "Bitte lade eine PDF, DOCX oder TXT Datei hoch.",
+          variant: "destructive",
+        })
+        return
       }
+      
+      // Validiere Dateigröße (max 10MB)
+      if (droppedFile.size > 10 * 1024 * 1024) {
+        toast({
+          title: "Datei zu groß",
+          description: "Die maximale Dateigröße beträgt 10MB.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      setFile(droppedFile)
     }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null)
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0]
-      if (
-        selectedFile.type === "application/pdf" ||
-        selectedFile.type === "application/msword" ||
-        selectedFile.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        selectedFile.type === "text/plain" // Unterstützung für txt Dateien
-      ) {
-        setFile(selectedFile)
-      } else {
-        setError("Bitte laden Sie nur PDF, Word oder TXT-Dokumente hoch.")
+      
+      // Validiere Dateityp
+      const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
+      if (!allowedTypes.includes(selectedFile.type)) {
+        toast({
+          title: "Ungültiges Dateiformat",
+          description: "Bitte lade eine PDF, DOCX oder TXT Datei hoch.",
+          variant: "destructive",
+        })
+        return
       }
+      
+      // Validiere Dateigröße (max 10MB)
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast({
+          title: "Datei zu groß",
+          description: "Die maximale Dateigröße beträgt 10MB.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      setFile(selectedFile)
     }
   }
 
   const removeFile = () => {
     setFile(null)
-    setError(null)
   }
 
-  const uploadFile = async () => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     if (!file) return
 
-    setUploading(true)
-    setError(null)
-    setProgress(10) // Startfortschritt anzeigen
-
     try {
-      // Echter Upload und Analyse über Convex
-      const result = await uploadAndAnalyzeContract(file);
+      setIsLoading(true)
       
-      // Fortschritt simulieren während der Analyse im Backend
-      let currentProgress = 10;
-      const interval = setInterval(() => {
-        currentProgress += 5;
-        setProgress(Math.min(currentProgress, 95)); // Maximal 95%, 100% erst nach Abschluss
-        
-        if (currentProgress >= 95) {
-          clearInterval(interval);
-        }
-      }, 300);
-
-      if (result.success && result.contractId) {
-        // Erfolg - warte einen Moment und leite dann weiter
-        setTimeout(() => {
-          setProgress(100);
-          // Navigiere zur Detailseite oder Analyseseite mit der Vertrags-ID
-          router.push(`/analytik/${result.contractId}`);
-        }, 1000);
-      } else {
-        // Wenn result.success false ist, benutze result.error für die Fehlermeldung
-        throw new Error(result.error || "Upload oder Analyse fehlgeschlagen. Unbekannter Fehler.");
+      // Schritt 1: Datei hochladen und Datensatz erstellen
+      const result = await upload(file)
+      
+      if (!result || error) {
+        toast({
+          title: "Upload fehlgeschlagen",
+          description: error || "Der Datei-Upload konnte nicht abgeschlossen werden.",
+          variant: "destructive",
+        })
+        return
       }
-    } catch (err: any) { // Expliziter Typ für err
-      // Verwende err.message, wenn vorhanden, sonst eine generische Meldung
-      const errorMessage = err.message || "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.";
-      setError(errorMessage);
-      setUploading(false);
-      setProgress(0); // Fortschritt zurücksetzen
-      console.error("Upload error details:", err); // Detailliertere Logausgabe
+      
+      // Erfolgreich hochgeladen
+      toast({
+        title: "Upload erfolgreich",
+        description: "Deine Datei wurde hochgeladen. Die Analyse wird gestartet...",
+        variant: "default",
+      })
+      
+      // Schritt 2: Analyse starten
+      try {
+        await analyzeContract({ 
+          contractId: result.contractId, 
+          storageId: result.storageId 
+        })
+        toast({
+          title: "Analyse gestartet",
+          description: "Die Vertragsanalyse läuft im Hintergrund.",
+          variant: "default",
+        })
+      } catch (analyzeError) {
+        console.error("Failed to start analysis:", analyzeError)
+        toast({
+          title: "Fehler beim Start der Analyse",
+          description: analyzeError instanceof Error ? analyzeError.message : "Die Analyse konnte nicht gestartet werden.",
+          variant: "destructive",
+        })
+        // Hier nicht unbedingt abbrechen, Weiterleitung kann trotzdem sinnvoll sein
+      }
+
+      // Schritt 3: Weiterleitung zur Analyse-Seite
+      router.push(`/analytik/${result.contractId}`)
+      
+    } catch (err) {
+      console.error("Upload error:", err)
+      toast({
+        title: "Upload fehlgeschlagen",
+        description: err instanceof Error ? err.message : "Ein unbekannter Fehler ist aufgetreten.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleReset = () => {
+    setFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
   return (
-    <div className="w-full">
-      {!file ? (
-        <div
-          className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
-            isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="bg-primary/10 rounded-full p-3 mb-4">
-            <Upload className="h-6 w-6 text-primary" />
-          </div>
-          <h3 className="mb-2 text-lg font-medium">Vertrag hier ablegen oder auswählen</h3>
-          <p className="mb-4 text-sm text-muted-foreground">Unterstützte Formate: PDF, DOC, DOCX, TXT</p>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => document.getElementById("file-upload")?.click()}>
-              <FileText className="mr-2 h-4 w-4" />
-              Datei auswählen
-            </Button>
-            <input
-              id="file-upload"
-              type="file"
-              className="hidden"
-              accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-              onChange={handleFileChange}
-            />
-          </div>
-          {error && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-red-500">
-              <AlertTriangle className="h-4 w-4" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {uploading ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Vertrag wird hochgeladen und analysiert...</span>
-                <span className="text-sm text-muted-foreground">{progress}%</span>
-              </div>
-              <Progress value={progress} className="h-2 w-full" />
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                {progress < 30
-                  ? "Vertrag wird hochgeladen..."
-                  : progress < 60
-                    ? "Klauseln werden analysiert..."
-                    : progress < 90
-                      ? "Risikobewertung wird durchgeführt..."
-                      : "Ergebnisse werden vorbereitet..."}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between rounded-lg border p-4 bg-card">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <FileText className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={removeFile} className="rounded-full h-8 w-8">
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Datei entfernen</span>
-                </Button>
-              </div>
-              <Button className="w-full" onClick={uploadFile}>
-                Vertrag hochladen und analysieren
-              </Button>
-            </>
-          )}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="file">Vertrag hochladen</Label>
+        <Input
+          ref={fileInputRef}
+          id="file"
+          type="file"
+          accept=".pdf,.docx,.txt"
+          onChange={handleFileChange}
+          disabled={isLoading || isUploading}
+          required
+        />
+        <p className="text-sm text-muted-foreground">
+          Unterstützte Dateiformate: PDF, DOCX, TXT (max. 10MB)
+        </p>
+      </div>
+
+      {file && (
+        <div className="flex items-center space-x-2">
+          <p className="text-sm">
+            <span className="font-medium">Ausgewählte Datei:</span> {file.name}
+          </p>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm" 
+            onClick={handleReset}
+            disabled={isLoading || isUploading}
+          >
+            Ändern
+          </Button>
         </div>
       )}
-    </div>
+
+      {isUploading && (
+        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+          <div 
+            className="bg-blue-600 h-2.5 rounded-full" 
+            style={{ width: `${uploadProgress}%` }}
+          ></div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Upload: {uploadProgress}%
+          </p>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={!file || isLoading || isUploading}>
+          {isLoading || isUploading ? "Wird hochgeladen..." : "Vertrag analysieren"}
+        </Button>
+      </div>
+    </form>
   )
 }

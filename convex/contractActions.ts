@@ -1,36 +1,35 @@
+/// <reference path="../types/gemini-api.d.ts" />
+
 "use node";
 
-import { action, internalAction } from "./_generated/server";
+import { action, internalAction, internalMutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
-import fs from 'fs';
-import path from 'path';
-// PDF-Parser ändern
 import { PDFDocument } from 'pdf-lib';
 import extract from 'pdf-text-extract';
 import mammoth from 'mammoth';
 import { Id } from "./_generated/dataModel";
 import { promisify } from 'util';
+import { RULES_FOR_ANALYSIS, LEGAL_BASIS_EXTRACT } from './ai_knowledge_base'; // Importiere die Konstanten
 
 // Umwandlung des callback-basierten pdf-text-extract in eine Promise-basierte Version
-const extractTextFromPDF = promisify(extract);
+// pdf-text-extract benötigt einen Dateipfad, daher können wir es nicht direkt mit Buffer verwenden
+// Wir müssen eine temporäre Datei speichern oder eine andere Bibliothek verwenden
+// Für dieses Beispiel entfernen wir die PDF-Extraktion, die fs/path benötigt
+// const extractTextFromPDF = promisify(extract);
 
-const CHUNK_SIZE_WORDS = 1500; // Ungefähre Wortanzahl pro Chunk, muss experimentell angepasst werden!
+const CHUNK_SIZE_WORDS = 1500;
 
 async function getBuffer(file: Blob | ArrayBuffer): Promise<Buffer> {
     if (file instanceof ArrayBuffer) {
         return Buffer.from(file);
     }
-    // Für Blob, konvertiere zu ArrayBuffer zuerst
     const arrayBuffer = await file.arrayBuffer();
     return Buffer.from(arrayBuffer);
 }
 
-/**
- * Teilt einen Text in Chunks basierend auf Wortanzahl und versucht, an Satzenden zu trennen.
- */
 function splitTextIntoChunks(text: string, chunkSizeInWords: number): string[] {
-  const sentences = text.split(/(?<=[.!?])\s+/); // Einfache Satz-Tokenisierung
+  const sentences = text.split(/(?<=[.!?])\s+/); 
   const chunks: string[] = [];
   let currentChunk = "";
   let currentWordCount = 0;
@@ -53,7 +52,7 @@ function splitTextIntoChunks(text: string, chunkSizeInWords: number): string[] {
 
 export const startFullContractAnalysis = action({
   args: { 
-    storageId: v.id("_storage"), // Wir verwenden nur noch echte Storage-IDs
+    storageId: v.id("_storage"),
     contractId: v.id("contracts") 
   },
   handler: async (ctx, args) => {
@@ -65,7 +64,6 @@ export const startFullContractAnalysis = action({
       totalChunks: 0,
     });
 
-    // Hole die tatsächliche Datei aus dem Storage
     const fileBlob = await ctx.storage.get(args.storageId);
     if (!fileBlob) {
       await ctx.runMutation(internal.contractMutations.updateContractStatus, {
@@ -86,51 +84,23 @@ export const startFullContractAnalysis = action({
     }
     const fileName = contractDocument.fileName.toLowerCase();
     
-    console.log(`Attempting text extraction for: ${fileName}`); // Zusätzliches Logging
+    console.log(`Attempting text extraction for: ${fileName}`);
 
     try {
         if (fileName.endsWith(".pdf")) {
-            // PDF-Support mit pdf-lib und pdf-text-extract
-            console.log("Processing PDF file...");
-
-            // Temporäre Datei erstellen, da pdf-text-extract mit Dateipfaden arbeitet
-            const tempDir = path.join(process.cwd(), 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            const tempFilePath = path.join(tempDir, `temp_${Date.now()}.pdf`);
-            fs.writeFileSync(tempFilePath, fileBuffer);
-            
+            // PDF-Extraktion mit pdf-text-extract wurde entfernt, da sie fs/path benötigt.
+            console.warn("PDF extraction using pdf-text-extract is currently disabled because it requires filesystem access.");
+            // Alternativ: Verwende eine andere Bibliothek oder eine Convex HTTP Action für die Extraktion.
+            // Fallback mit pdf-lib (kann normalerweise keinen Text extrahieren)
             try {
-                // Text aus PDF extrahieren
-                const pages = await extractTextFromPDF(tempFilePath);
-                extractedText = pages.join('\n\n');
-                
-                // Prüfen, ob Text erfolgreich extrahiert wurde
-                if (!extractedText || extractedText.trim().length === 0) {
-                    // Wenn pdf-text-extract keinen Text findet, versuchen wir es mit pdf-lib
-                    console.log("No text extracted from pdf-text-extract, trying pdf-lib...");
-                    const pdfDoc = await PDFDocument.load(fileBuffer);
-                    
-                    // Anzahl der Seiten ausgeben (zur Information)
-                    console.log(`PDF has ${pdfDoc.getPageCount()} pages.`);
-                    
-                    // HINWEIS: pdf-lib kann standardmäßig keinen Text aus PDFs extrahieren.
-                    // Es ist hauptsächlich zum Erstellen/Bearbeiten von PDFs gedacht, nicht zum Extrahieren von Text.
-                    // Wir fügen hier einen Fallback-Text hinzu
-                    extractedText = `PDF konnte nicht vollständig extrahiert werden. Die PDF hat ${pdfDoc.getPageCount()} Seiten.`;
-                }
-            } finally {
-                // Temporäre Datei aufräumen, egal ob erfolgreich oder nicht
-                try {
-                    fs.unlinkSync(tempFilePath);
-                } catch (cleanupError) {
-                    console.error("Failed to delete temporary PDF file:", cleanupError);
-                }
+                const pdfDoc = await PDFDocument.load(fileBuffer);
+                extractedText = `PDF konnte nicht extrahiert werden (fs-Zugriff erforderlich). Das Dokument hat ${pdfDoc.getPageCount()} Seiten.`;
+                console.log(`PDF loaded with pdf-lib. Page count: ${pdfDoc.getPageCount()}.`);
+            } catch (pdfLibError: any) {
+                console.error("Error loading PDF with pdf-lib:", pdfLibError);
+                extractedText = "Fehler beim Laden der PDF-Datei.";
             }
             
-            console.log(`PDF text extracted. Length: ${extractedText.length} characters`);
         } else if (fileName.endsWith(".docx")) {
             console.log("Processing DOCX file...");
             const result = await mammoth.extractRawText({ buffer: fileBuffer });
@@ -144,7 +114,6 @@ export const startFullContractAnalysis = action({
             await ctx.runMutation(internal.contractMutations.updateContractStatus, {
                 contractId: args.contractId, status: "failed",
             });
-            // Angepasste Fehlermeldung
             throw new ConvexError(`Unsupported file type: ${contractDocument.fileName}. Only .pdf, .docx, and .txt are currently supported.`);
         }
     } catch (error: any) {
@@ -152,7 +121,6 @@ export const startFullContractAnalysis = action({
         await ctx.runMutation(internal.contractMutations.updateContractStatus, {
             contractId: args.contractId, status: "failed",
         });
-        // Detailliertere Fehlermeldung
         throw new ConvexError(`Failed to extract text from ${fileName}: ${error.message || 'Unknown error'}`);
     }
     
@@ -161,27 +129,13 @@ export const startFullContractAnalysis = action({
         contractId: args.contractId,
         status: "failed",
       });
-      throw new ConvexError(`Extracted text from ${fileName} is empty.`);
+      throw new ConvexError(`Extracted text from ${contractDocument.fileName} is empty.`);
     }
-    console.log(`Text extracted (length: ${extractedText.length}) from ${fileName}`);
+    console.log(`Text extracted (length: ${extractedText.length}) from ${contractDocument.fileName}`);
 
-    let rulesText = "";
-    let legalBasisText = "";
-    try {
-      const baseDir = process.cwd(); 
-      const rulesFilePath = path.join(baseDir, 'ai-knowledge-base', 'Regeln für die Analyse.md');
-      const legalBasisFilePath = path.join(baseDir, 'ai-knowledge-base', 'juristischer_basis_extrakt.md');
-      rulesText = fs.readFileSync(rulesFilePath, 'utf-8');
-      legalBasisText = fs.readFileSync(legalBasisFilePath, 'utf-8');
-      console.log("Knowledge base files loaded successfully.");
-    } catch (error) {
-      console.error("Error loading knowledge base files:", error);
-      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
-        contractId: args.contractId,
-        status: "failed",
-      });
-      throw new ConvexError("Failed to load knowledge base.");
-    }
+    const rulesText = RULES_FOR_ANALYSIS;
+    const legalBasisText = LEGAL_BASIS_EXTRACT;
+    console.log("Knowledge base content loaded from constants.");
 
     const chunks = splitTextIntoChunks(extractedText, CHUNK_SIZE_WORDS);
     if (chunks.length === 0) {
@@ -258,10 +212,10 @@ ${args.legalBasisText}
 
 Stelle sicher, dass deine Antwort ausschließlich ein valides JSON-Array ist, wie im Systemprompt beschrieben. Beginne deine Antwort direkt mit '[' und ende sie mit ']'.`;
 
-    let analysisResultForChunk: any[] = [];
+    let analysisResultForChunk: Gemini.ContractClauseAnalysis[] = [];
     try {
       console.log(`Calling Gemini for chunk ${args.chunkNumber} of contract ${args.contractId}...`);
-      const requestBody = {
+      const requestBody: Gemini.RequestBody = {
         contents: [
           { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
         ],
@@ -278,35 +232,91 @@ Stelle sicher, dass deine Antwort ausschließlich ein valides JSON-Array ist, wi
         console.error(`Gemini API error for chunk ${args.chunkNumber}: ${response.status} ${response.statusText}`, errorBody);
         throw new Error(`Gemini API error: ${response.status} ${response.statusText}. Body: ${errorBody}`);
       }
-      const responseData = await response.json();
+      const responseData: Gemini.GenerateContentResponse = await response.json();
       if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
         console.error("Gemini API response is not in the expected format for chunk " + args.chunkNumber, responseData);
         throw new Error("Unexpected Gemini API response format.");
       }
       const geminiOutput = responseData.candidates[0].content.parts[0].text;
       let cleanedOutput = geminiOutput.trim();
+      
+      // Verbesserte Bereinigung: Entfernt Markdown-Code-Block-Marker und alles außerhalb
       if (cleanedOutput.startsWith("```json")) {
         cleanedOutput = cleanedOutput.substring(7);
+        if (cleanedOutput.endsWith("```")) {
+          cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+        }
+      } else if (cleanedOutput.startsWith("```")) { // Falls nur ``` am Anfang ohne json
+        cleanedOutput = cleanedOutput.substring(3);
+        if (cleanedOutput.endsWith("```")) {
+          cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+        }
       }
-      if (cleanedOutput.endsWith("```")) {
-        cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+      if (cleanedOutput.endsWith("```")) { // Falls nur ``` am Ende
+          cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
       }
       cleanedOutput = cleanedOutput.trim(); 
+
+      // Versuch, das JSON zu parsen, auch wenn es fehlerhaft sein könnte
+      // Manchmal ist die Ausgabe ein einzelnes Objekt statt eines Arrays
+      let parsedJson: any;
       try {
-        analysisResultForChunk = JSON.parse(cleanedOutput);
-        if (!Array.isArray(analysisResultForChunk)) {
-            console.warn(`Gemini output for chunk ${args.chunkNumber} was valid JSON but not an array. Wrapping in array. Output:`, analysisResultForChunk);
-            analysisResultForChunk = [analysisResultForChunk]; 
-        }
+        parsedJson = JSON.parse(cleanedOutput);
       } catch (parseError: any) {
         console.error(`Failed to parse Gemini JSON output for chunk ${args.chunkNumber}. Output was:`, cleanedOutput, "Error:", parseError);
-         analysisResultForChunk = [{ 
-            clauseText: `Fehler beim Parsen der KI-Antwort für Chunk ${args.chunkNumber}.`,
+        // Versuche, häufige Fehler zu korrigieren, z.B. fehlende schließende Klammern oder Kommas
+        // Dies ist ein sehr einfacher Versuch und benötigt ggf. eine ausgefeiltere Logik
+        let recoveryAttempt = cleanedOutput;
+        if (!recoveryAttempt.endsWith("]")) {
+            if (recoveryAttempt.endsWith("}")) recoveryAttempt += "]"; // Wenn es wie ein Objekt in einem Array aussieht
+            else if (!recoveryAttempt.endsWith("}")) recoveryAttempt += "}]"; // Sehr spekulativ
+        }
+        if (!recoveryAttempt.startsWith("[")) {
+            if (recoveryAttempt.startsWith("{")) recoveryAttempt = "[" + recoveryAttempt;
+        }
+
+        try {
+            parsedJson = JSON.parse(recoveryAttempt);
+            console.warn(`Successfully parsed after recovery attempt for chunk ${args.chunkNumber}.`);
+        } catch (recoveryParseError: any) {
+             console.error(`Recovery attempt failed for chunk ${args.chunkNumber}.`, recoveryParseError);
+             analysisResultForChunk = [{ 
+                clauseText: `Fehler beim Parsen der KI-Antwort für Chunk ${args.chunkNumber}.`,
+                evaluation: "Fehler",
+                reason: `KI-Antwort war kein valides JSON und konnte nicht repariert werden: ${parseError.message}. Raw Output (erste 300 Zeichen): ${geminiOutput.substring(0,300)}...`,
+                recommendation: "Überprüfe die KI-Antwort, den Prompt und die Gemini API-Stabilität. Der Chunk wurde nicht analysiert."
+            }];
+            // Wichtig: Hier nicht `throw new Error` sondern den Fehler im Ergebnis speichern
+        }
+      }
+
+      if (parsedJson) { // Nur wenn Parsen (ggf. nach Reparatur) erfolgreich war
+        if (Array.isArray(parsedJson)) {
+          analysisResultForChunk = parsedJson as Gemini.ContractClauseAnalysis[];
+        } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+          // Wenn Gemini ein einzelnes Objekt statt eines Arrays zurückgibt
+          console.warn(`Gemini output for chunk ${args.chunkNumber} was a single object, wrapping in array. Output:`, parsedJson);
+          analysisResultForChunk = [parsedJson as Gemini.ContractClauseAnalysis];
+        } else {
+          console.error(`Gemini output for chunk ${args.chunkNumber} was not an array or a valid single object after parsing. Output:`, parsedJson);
+          analysisResultForChunk = [{ 
+              clauseText: `Unerwartetes Datenformat von der KI für Chunk ${args.chunkNumber}.`,
+              evaluation: "Fehler",
+              reason: `Die KI-Antwort war valides JSON, aber weder ein Array noch ein erwartetes Objekt. Output: ${JSON.stringify(parsedJson).substring(0,200)}...`,
+              recommendation: "Überprüfe die KI-Antwort und den Prompt. Der Chunk wurde nicht analysiert."
+          }];
+        }
+      }
+      // Sicherstellen, dass analysisResultForChunk immer ein Array ist, auch wenn ein Fehler oben auftrat und es noch nicht initialisiert wurde
+      if (!Array.isArray(analysisResultForChunk)) {
+        analysisResultForChunk = [{ 
+            clauseText: `Interner Verarbeitungsfehler für Chunk ${args.chunkNumber}.`,
             evaluation: "Fehler",
-            reason: `KI-Antwort war kein valides JSON: ${parseError.message}. Raw Output: ${geminiOutput.substring(0,200)}...`,
-            recommendation: "Überprüfe die KI-Antwort und den Prompt."
+            reason: `analysisResultForChunk wurde nicht korrekt als Array initialisiert. Dies sollte nicht passieren.`,
+            recommendation: "Entwickler kontaktieren."
         }];
       }
+
     } catch (error: any) {
       console.error(`Error analyzing chunk ${args.chunkNumber} for contract ${args.contractId}:`, error.message, error.stack);
       await ctx.runMutation(internal.contractMutations.appendChunkAnalysis, {
@@ -410,4 +420,106 @@ export const uploadFileAction = action({
       };
     }
   }
+});
+
+// Neue Action zur Optimierung einer einzelnen Klausel
+export const optimizeClauseWithAI = action({
+    args: {
+        clauseText: v.string(),
+        // Optional: Kontext hinzufügen, z.B. Vertragstyp, ursprüngliche Bewertung
+        context: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        console.log(`Optimizing clause with AI: "${args.clauseText.substring(0, 50)}..."`);
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) {
+            console.error("GEMINI_API_KEY is not set in environment variables for optimizeClauseWithAI.");
+            throw new ConvexError("GEMINI_API_KEY is not configured.");
+        }
+
+        // Angepasster Prompt für Optimierung/Alternativen
+        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel und optionalem Kontext, 1-3 verbesserte oder alternative Formulierungen vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer sind. Berücksichtige dabei gängige Praktiken und potenziell das deutsche/österreichische Baurecht.
+        Gib als Ergebnis NUR ein valides JSON-Array von Strings zurück. Jeder String im Array ist eine alternative Formulierung. Beispiel: ["Alternative Formulierung 1", "Alternative Formulierung 2"]
+        Wenn keine sinnvolle Alternative möglich ist oder die Klausel bereits optimal erscheint, gib ein leeres Array zurück: [].`;
+
+        const userPrompt = `Bitte optimiere die folgende Vertragsklausel für einen Bauunternehmer oder schlage 1-3 faire Alternativen vor. Konzentriere dich auf Klarheit, Risikominimierung und Ausgewogenheit.
+
+Klausel:
+"${args.clauseText}"
+
+${args.context ? `\nZusätzlicher Kontext:\n${args.context}` : ''}
+
+Gib das Ergebnis als JSON-Array von Strings zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
+
+        let alternativeFormulations: string[] = [];
+        try {
+            const requestBody: Gemini.RequestBody = {
+                contents: [
+                    { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
+                ],
+                // Ggf. safetySettings und generationConfig anpassen
+            };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                console.error(`Gemini API error during optimization: ${response.status} ${response.statusText}`, errorBody);
+                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+            }
+
+            const responseData: Gemini.GenerateContentResponse = await response.json();
+            if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
+                 console.error("Gemini API response is not in the expected format during optimization", responseData);
+                 throw new Error("Unexpected Gemini API response format.");
+            }
+
+            const geminiOutput = responseData.candidates[0].content.parts[0].text;
+            let cleanedOutput = geminiOutput.trim();
+
+            // JSON Bereinigung (ähnlich wie bei analyzeContractChunk)
+            if (cleanedOutput.startsWith("```json")) {
+                cleanedOutput = cleanedOutput.substring(7);
+                if (cleanedOutput.endsWith("```")) {
+                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+                }
+            } else if (cleanedOutput.startsWith("```")) {
+                cleanedOutput = cleanedOutput.substring(3);
+                 if (cleanedOutput.endsWith("```")) {
+                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+                }
+            }
+            if (cleanedOutput.endsWith("```")) {
+                cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+            }
+            cleanedOutput = cleanedOutput.trim();
+
+            try {
+                const parsedJson = JSON.parse(cleanedOutput);
+                if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'string')) {
+                    alternativeFormulations = parsedJson;
+                } else {
+                    console.warn("Parsed JSON from Gemini (optimization) is not an array of strings:", parsedJson);
+                    // Versuche, es zu interpretieren, falls es ein String oder Objekt ist
+                    if (typeof parsedJson === 'string') alternativeFormulations = [parsedJson];
+                    // Fallback: leeres Array
+                }
+            } catch (parseError: any) {
+                console.error("Failed to parse Gemini JSON output for optimization:", cleanedOutput, "Error:", parseError);
+                // Fallback: leeres Array oder Fehlermeldung werfen
+                 throw new Error(`Failed to parse optimization suggestions from AI: ${parseError.message}`);
+            }
+
+        } catch (error: any) {
+            console.error(`Error optimizing clause with AI:`, error.message, error.stack);
+            throw new ConvexError(`Failed to get optimization from AI: ${error.message || 'Unknown error'}`);
+        }
+
+        console.log(`Received ${alternativeFormulations.length} alternative formulations from AI.`);
+        return alternativeFormulations; // Gibt das Array der Strings zurück
+    },
 }); 

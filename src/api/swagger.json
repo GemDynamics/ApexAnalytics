@@ -1,0 +1,535 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BauVertragsanalyse API",
+    "description": "API für die Bauvertragsanalyse-Anwendung",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API Version 1"
+    }
+  ],
+  "paths": {
+    "/vertraege": {
+      "get": {
+        "summary": "Alle Verträge abrufen",
+        "description": "Gibt eine Liste aller Verträge zurück",
+        "responses": {
+          "200": {
+            "description": "Erfolgreich abgerufen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Vertrag"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      },
+      "post": {
+        "summary": "Neuen Vertrag erstellen",
+        "description": "Erstellt einen neuen Vertrag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Vertrag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Erfolgreich erstellt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vertrag"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    },
+    "/vertraege/{id}": {
+      "get": {
+        "summary": "Vertrag abrufen",
+        "description": "Gibt einen Vertrag anhand seiner ID zurück",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Erfolgreich abgerufen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vertrag"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nicht gefunden"
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      },
+      "put": {
+        "summary": "Vertrag aktualisieren",
+        "description": "Aktualisiert einen Vertrag anhand seiner ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Vertrag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Erfolgreich aktualisiert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vertrag"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nicht gefunden"
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Vertrag löschen",
+        "description": "Löscht einen Vertrag anhand seiner ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Erfolgreich gelöscht"
+          },
+          "404": {
+            "description": "Nicht gefunden"
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    },
+    "/vorbereitungen/{vertragId}": {
+      "get": {
+        "summary": "Vorbereitung abrufen",
+        "description": "Gibt eine Verhandlungsvorbereitung anhand der Vertrags-ID zurück",
+        "parameters": [
+          {
+            "name": "vertragId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Erfolgreich abgerufen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerhandlungsVorbereitung"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nicht gefunden"
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    },
+    "/simulationen/start/{vertragId}": {
+      "post": {
+        "summary": "Simulation starten",
+        "description": "Startet eine neue Simulation für einen Vertrag",
+        "parameters": [
+          {
+            "name": "vertragId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Erfolgreich gestartet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Simulation"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    },
+    "/simulationen/{id}/nachricht": {
+      "post": {
+        "summary": "Nachricht senden",
+        "description": "Sendet eine Nachricht in der Simulation und erhält eine Antwort",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nachricht": {
+                    "type": "string"
+                  }
+                },
+                "required": ["nachricht"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Erfolgreich verarbeitet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatNachricht"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    },
+    "/feedback/{simulationId}": {
+      "get": {
+        "summary": "Feedback abrufen",
+        "description": "Gibt ein Feedback anhand der Simulations-ID zurück",
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Erfolgreich abgerufen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerhandlungsFeedback"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nicht gefunden"
+          },
+          "500": {
+            "description": "Serverfehler"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Vertrag": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "titel": {
+            "type": "string"
+          },
+          "beschreibung": {
+            "type": "string"
+          },
+          "projektTyp": {
+            "type": "string"
+          },
+          "klauseln": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Klausel"
+            }
+          },
+          "erstelltAm": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Klausel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "titel": {
+            "type": "string"
+          },
+          "inhalt": {
+            "type": "string"
+          },
+          "risikoFarbe": {
+            "type": "string",
+            "enum": ["rot", "gelb", "grün"]
+          },
+          "kommentar": {
+            "type": "string"
+          }
+        }
+      },
+      "VerhandlungsVorbereitung": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "vertragId": {
+            "type": "string"
+          },
+          "globaleZiele": {
+            "type": "string"
+          },
+          "nichtVerhandelbarePunkte": {
+            "type": "string"
+          },
+          "klauselStrategien": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KlauselStrategie"
+            }
+          }
+        }
+      },
+      "KlauselStrategie": {
+        "type": "object",
+        "properties": {
+          "klauselId": {
+            "type": "string"
+          },
+          "argumente": {
+            "type": "string"
+          },
+          "strategie": {
+            "type": "string"
+          }
+        }
+      },
+      "Simulation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "vertragId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["aktiv", "beendet"]
+          },
+          "startZeit": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endeZeit": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nachrichten": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatNachricht"
+            }
+          },
+          "fortschritt": {
+            "type": "object",
+            "properties": {
+              "behandelteKlauseln": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "offeneKlauseln": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "aktuelleKlausel": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ChatNachricht": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "absender": {
+            "type": "string",
+            "enum": ["bauunternehmer", "bauherr"]
+          },
+          "inhalt": {
+            "type": "string"
+          },
+          "zeitstempel": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bezugKlauselId": {
+            "type": "string"
+          }
+        }
+      },
+      "VerhandlungsFeedback": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "simulationId": {
+            "type": "string"
+          },
+          "erstelltAm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gesamtBewertung": {
+            "type": "number"
+          },
+          "stärken": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bewertungspunkt"
+            }
+          },
+          "verbesserungsPotenzial": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bewertungspunkt"
+            }
+          },
+          "emotionaleIntelligenz": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bewertungspunkt"
+            }
+          },
+          "tippsNächsteVerhandlung": {
+            "type": "string"
+          },
+          "nächsteÜbungEmpfohlenIn": {
+            "type": "number"
+          }
+        }
+      },
+      "Bewertungspunkt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "gewichtung": {
+            "type": "number"
+          },
+          "kategorie": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+} 

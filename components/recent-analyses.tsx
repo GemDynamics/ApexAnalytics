@@ -95,7 +95,7 @@ export function RecentAnalyses() {
       <CardHeader>
         <CardTitle>Letzte Analysen</CardTitle>
         <CardDescription>Ihre zuletzt hochgeladenen und analysierten Verträge.</CardDescription>
-      </CardHeader>
+          </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px]">
           {isLoading ? (
@@ -107,20 +107,20 @@ export function RecentAnalyses() {
                     <div className="space-y-1">
                       <Skeleton className="h-4 w-40" />
                       <Skeleton className="h-3 w-24" />
-                    </div>
+                  </div>
                   </div>
                   <Skeleton className="h-5 w-20" />
                 </div>
               ))}
-            </div>
+                </div>
           ) : recentContracts && recentContracts.length > 0 ? (
-            <div className="space-y-3">
+                <div className="space-y-3">
               {recentContracts.map((contract) => (
                 <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div>
+                  <div>
                         <p className="font-medium truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
                           {contract.fileName}
                         </p>
@@ -140,13 +140,13 @@ export function RecentAnalyses() {
                     </Badge>
                   </div>
                 </Link>
-              ))}
+                      ))}
             </div>
           ) : (
             <p className="text-center text-muted-foreground py-8">Noch keine Analysen vorhanden.</p>
           )}
         </ScrollArea>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
   )
 }
