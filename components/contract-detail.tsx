@@ -58,10 +58,14 @@ export function ContractDetail({ contractId, initialTab = "analyse" }: ContractD
   const [activeTab, setActiveTab] = useState<"analyse" | "verhandlung" | "editor" | "klauseln" | "risiko">(initialTab);
   const [openClause, setOpenClause] = useState<number | null>(null);
   const [optimizingClauseId, setOptimizingClauseId] = useState<number | null>(null);
+  const [generatingAlternativesForClauseId, setGeneratingAlternativesForClauseId] = useState<number | null>(null);
   const [customFormulation, setCustomFormulation] = useState("");
+  const [alternativeFormulations, setAlternativeFormulations] = useState<string[]>([]);
   
   // KI-Optimierungsfunktion
   const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
+  // Neue Funktion für alternative Formulierungen
+  const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
 
   const handleOptimizeWithAI = async (clauseText: string) => {
     if (!clauseText.trim()) {
@@ -90,6 +94,36 @@ export function ContractDetail({ contractId, initialTab = "analyse" }: ContractD
       });
     } finally {
       setOptimizingClauseId(null);
+    }
+  };
+
+  // Neue Funktion zum Generieren von Alternativen
+  const handleGenerateAlternatives = async (clauseText: string) => {
+    if (!clauseText.trim()) {
+      toast.info("Keine Klausel zum Generieren von Alternativen vorhanden.");
+      return;
+    }
+    
+    const clauseId = openClause;
+    if (clauseId === null) return;
+    
+    setGeneratingAlternativesForClauseId(clauseId);
+    try {
+      const alternatives = await generateAlternativesAction({ clauseText });
+      
+      if (alternatives && alternatives.length > 0) {
+        setAlternativeFormulations(alternatives);
+        toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
+      } else {
+        toast.info("KI konnte keine Alternativen für diesen Text generieren.");
+      }
+    } catch (error) {
+      console.error("Fehler bei der Generierung von Alternativen:", error);
+      toast.error("Fehler bei der Generierung von Alternativen", { 
+        description: error instanceof Error ? error.message : "Unbekannter Fehler" 
+      });
+    } finally {
+      setGeneratingAlternativesForClauseId(null);
     }
   };
 
@@ -277,7 +311,15 @@ export function ContractDetail({ contractId, initialTab = "analyse" }: ContractD
                 <Collapsible
                   key={clause.id}
                   open={openClause === clause.id}
-                  onOpenChange={() => setOpenClause(openClause === clause.id ? null : (clause.id ?? null))}
+                  onOpenChange={() => {
+                    const newClauseId = openClause === clause.id ? null : (clause.id ?? null);
+                    setOpenClause(newClauseId);
+                    
+                    // Wenn eine Karte aufgeklappt wird, generiere automatisch Alternativen
+                    if (newClauseId !== null) {
+                      handleGenerateAlternatives(clause.clauseText);
+                    }
+                  }}
                 >
                   <CollapsibleTrigger className="w-full">
                     <div className="flex cursor-pointer items-center justify-between p-4 hover:bg-muted/50 w-full text-left">
@@ -382,8 +424,44 @@ export function ContractDetail({ contractId, initialTab = "analyse" }: ContractD
                         <Button size="sm" variant="outline" onClick={() => addToContractEditor(clause)}>
                           Zum Vertragseditor hinzufügen
                         </Button>
-                        <Button size="sm">Alternativen generieren</Button>
+                        <Button 
+                          size="sm"
+                          disabled={generatingAlternativesForClauseId === clause.id}
+                          onClick={() => handleGenerateAlternatives(clause.clauseText)}
+                        >
+                          {generatingAlternativesForClauseId === clause.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              <span>Wird generiert...</span>
+                            </>
+                          ) : (
+                            "Alternativen generieren"
+                          )}
+                        </Button>
                       </div>
+
+                      {/* Bereich für alternative Formulierungen */}
+                      {clause.id === openClause && alternativeFormulations.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          <h4 className="text-sm font-medium">Alternative Formulierungen:</h4>
+                          {alternativeFormulations.map((alternative, index) => (
+                            <div key={index} className="p-3 rounded-md border bg-slate-50">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-medium text-slate-500">Alternative {index + 1}</span>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="h-6 px-2"
+                                  onClick={() => setCustomFormulation(alternative)}
+                                >
+                                  <span className="text-xs">Übernehmen</span>
+                                </Button>
+                              </div>
+                              <p className="text-sm">{alternative}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

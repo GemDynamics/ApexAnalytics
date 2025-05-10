@@ -323,7 +323,7 @@ export const updateContractAnalysis = mutation({
     console.log(`Successfully updated analysis/sections for contract ${contractId}`);
     return { success: true };
   },
-});
+}); 
 
 // Funktion zum Aktualisieren des Dateinamens
 export const updateFileName = mutation({

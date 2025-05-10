@@ -59,6 +59,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   const { contract, isLoading } = useContract(contractId);
   const updateAnalysisMutation = useMutation(api.contractMutations.updateContractAnalysis);
   const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
+  const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
   const updateFileNameMutation = useMutation(api.contractMutations.updateFileName);
 
   // Aktuelle Sektionen aus dem Verlauf ableiten
@@ -337,16 +338,10 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
 
-    // Bestimme den zu optimierenden Inhalt:
-    // - Wenn textToOptimize übergeben wird (vom Button), nimm diesen.
-    // - Wenn NICHT übergeben (automatischer Aufruf), nimm section.content.
     const isManualOptimization = typeof textToOptimize === 'string';
     const contentToOptimize = isManualOptimization ? textToOptimize : section.content;
 
-    // Redundante Prüfung, da der Button dies bereits tut, aber zur Sicherheit:
     if (!contentToOptimize || contentToOptimize.trim().length === 0) {
-      // Wenn manuell aufgerufen ohne Text, wurde der Toast schon gezeigt.
-      // Wenn automatisch aufgerufen ohne Inhalt, dann ist die Sektion leer.
       if (!isManualOptimization) {
           toast.info("Kein Inhalt in der Klausel zum Optimieren vorhanden.");
       }
@@ -357,13 +352,12 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     console.log(`KI-Optimierung angefordert für Sektion ${sectionId}. Manuell: ${isManualOptimization}. Inhalt:`, contentToOptimize);
     
     try {
-        const alternatives = await optimizeClauseAction({ clauseText: contentToOptimize });
-        console.log("Received alternatives:", alternatives);
-        
-        if (alternatives && alternatives.length > 0) {
-            // Unterschiedliches Verhalten je nach Quelle des Aufrufs
-            if (isManualOptimization) {
-                // Fall 1: Bei einem manuellen Aufruf (Button "Mit KI optimieren" für benutzerdefinierte Formulierung)
+        if (isManualOptimization) {
+            // Fall 1: Bei einem manuellen Aufruf (Button "Mit KI optimieren")
+            const alternatives = await optimizeClauseAction({ clauseText: contentToOptimize });
+            console.log("Received alternatives:", alternatives);
+            
+            if (alternatives && alternatives.length > 0) {
                 // Den optimierten Text direkt in das Eingabefeld einfügen
                 const textarea = document.getElementById(`custom-formulation-${sectionId}`) as HTMLTextAreaElement;
                 if (textarea) {
@@ -373,9 +367,16 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                     toast.error("Fehler: Konnte das Eingabefeld nicht finden.");
                 }
             } else {
-                // Fall 2: Bei automatischem Aufruf (Detailkarte aufgeklappt)
-                // Alternativen als alternative Formulierungen speichern
-                toast.success(`${alternatives.length} Alternativvorschläge von KI erhalten.`);
+                toast.info("KI konnte keine Alternativen für diesen Text finden.");
+            }
+        } else {
+            // Fall 2: Bei automatischem Aufruf (Detailkarte aufgeklappt)
+            // Verwende die neue generateAlternativesAction für 3 alternative Formulierungen
+            const alternatives = await generateAlternativesAction({ clauseText: contentToOptimize });
+            console.log("Received alternative formulations:", alternatives);
+            
+            if (alternatives && alternatives.length > 0) {
+                toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
                 const newSections = sections.map(s => {
                     if (s.id === sectionId) {
                         // Überschreibe immer die alternativeFormulations mit den neuesten Ergebnissen
@@ -387,9 +388,9 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                     return s;
                 });
                 updateSectionsAndHistory(newSections);
+            } else {
+                toast.info("KI konnte keine Alternativen für diesen Text generieren.");
             }
-        } else {
-            toast.info("KI konnte keine Alternativen für diesen Text finden.");
         }
     } catch (error) {
         console.error("Fehler bei der KI-Optimierung:", error);

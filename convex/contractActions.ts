@@ -537,4 +537,130 @@ Gib das Ergebnis als JSON-Array mit einem einzigen String zurück, wie im System
             return [args.clauseText]; // Gib den ursprünglichen Text zurück
         }
     },
+});
+
+// Neue Action zur Generierung von 3 alternativen Formulierungen für eine Klausel
+export const generateAlternativeFormulations = action({
+    args: {
+        clauseText: v.string(),
+        context: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        console.log(`Generating alternative formulations for clause: "${args.clauseText.substring(0, 50)}..."`);
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) {
+            console.error("GEMINI_API_KEY is not set in environment variables for generateAlternativeFormulations.");
+            throw new ConvexError("GEMINI_API_KEY is not configured.");
+        }
+
+        // Angepasster Prompt für die Generierung von 3 Alternativen
+        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel, GENAU DREI verbesserte Formulierungen vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer sind. Die drei Alternativen sollen sich deutlich voneinander unterscheiden und unterschiedliche Aspekte adressieren.
+        
+        Gib als Ergebnis NUR ein valides JSON-Array mit GENAU DREI Strings zurück. Diese Strings sind die alternativen Formulierungen. Beispiel: ["Alternative 1", "Alternative 2", "Alternative 3"]`;
+
+        const userPrompt = `Bitte generiere GENAU DREI alternative Formulierungen für die folgende Vertragsklausel. Jede Alternative sollte einen anderen Ansatz oder Schwerpunkt haben, aber alle sollten für einen Bauunternehmer vorteilhafter sein.
+
+Klausel:
+"${args.clauseText}"
+
+${args.context ? `\nZusätzlicher Kontext:\n${args.context}` : ''}
+
+Gib das Ergebnis als JSON-Array mit GENAU DREI Strings zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
+
+        try {
+            const requestBody: Gemini.RequestBody = {
+                contents: [
+                    { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
+                ],
+                generationConfig: {
+                    temperature: 0.7, // Höhere Temperatur für vielfältigere Ergebnisse
+                    topP: 0.9,
+                    topK: 40
+                }
+            };
+
+            console.log("Sending request to Gemini API for alternative formulations...");
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                console.error(`Gemini API error during alternative formulation generation: ${response.status} ${response.statusText}`, errorBody);
+                // Fallback-Antwort bei API-Fehler
+                return [args.clauseText, args.clauseText, args.clauseText]; // Gib den ursprünglichen Text dreimal zurück
+            }
+
+            const responseData: Gemini.GenerateContentResponse = await response.json();
+            if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
+                 console.error("Gemini API response is not in the expected format during alternative formulation generation", responseData);
+                 // Fallback-Antwort bei unerwartetem Format
+                 return [args.clauseText, args.clauseText, args.clauseText]; // Gib den ursprünglichen Text dreimal zurück
+            }
+
+            const geminiOutput = responseData.candidates[0].content.parts[0].text;
+            let cleanedOutput = geminiOutput.trim();
+
+            // JSON Bereinigung
+            if (cleanedOutput.startsWith("```json")) {
+                cleanedOutput = cleanedOutput.substring(7);
+                if (cleanedOutput.endsWith("```")) {
+                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+                }
+            } else if (cleanedOutput.startsWith("```")) {
+                cleanedOutput = cleanedOutput.substring(3);
+                if (cleanedOutput.endsWith("```")) {
+                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
+                }
+            }
+            cleanedOutput = cleanedOutput.trim();
+            
+            try {
+                // Versuche, das JSON zu parsen
+                const parsedJson = JSON.parse(cleanedOutput);
+                
+                if (Array.isArray(parsedJson)) {
+                    // Stelle sicher, dass wir genau 3 Alternativen haben
+                    const alternatives = parsedJson.filter(item => typeof item === 'string');
+                    
+                    if (alternatives.length >= 3) {
+                        // Wähle die ersten 3 Alternativen
+                        return alternatives.slice(0, 3);
+                    } else if (alternatives.length > 0) {
+                        // Fülle mit Duplikaten auf, falls weniger als 3
+                        const result = [...alternatives];
+                        while (result.length < 3) {
+                            result.push(alternatives[0]);
+                        }
+                        return result;
+                    }
+                }
+                
+                // Fallback, wenn keine gültigen Alternativen gefunden wurden
+                return [
+                    args.clauseText, 
+                    `Alternative Version von: ${args.clauseText}`, 
+                    `Verbesserte Version von: ${args.clauseText}`
+                ];
+            } catch (parseError) {
+                console.error("Error parsing JSON from AI response:", parseError);
+                // Fallback bei JSON-Parsing-Fehler
+                return [
+                    args.clauseText, 
+                    `Alternative Version von: ${args.clauseText}`, 
+                    `Verbesserte Version von: ${args.clauseText}`
+                ];
+            }
+        } catch (error) {
+            console.error(`Error generating alternative formulations with AI:`, error);
+            // Fallback-Antwort bei Fehlern
+            return [
+                args.clauseText, 
+                `Alternative Version von: ${args.clauseText}`, 
+                `Verbesserte Version von: ${args.clauseText}`
+            ];
+        }
+    },
 }); 

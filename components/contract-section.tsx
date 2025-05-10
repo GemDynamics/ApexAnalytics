@@ -158,15 +158,15 @@ export function ContractSection({
           )}
         </div>
       </CardHeader>
-      <CardContent className="p-4 pt-2" onClick={isEditing ? (e) => e.stopPropagation() : undefined}>
-        {isEditing ? (
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-[150px] font-normal text-sm border-primary/50 focus:border-primary focus:ring-primary/30"
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
+        <CardContent className="p-4 pt-2" onClick={isEditing ? (e) => e.stopPropagation() : undefined}>
+          {isEditing ? (
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="min-h-[150px] font-normal text-sm border-primary/50 focus:border-primary focus:ring-primary/30"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
           <p className="text-sm whitespace-pre-wrap cursor-text" onClick={(e) => {
             e.stopPropagation();
             // Nur aktivieren, wenn die Sektion nicht schon aktiv ist
@@ -177,7 +177,7 @@ export function ContractSection({
         )}
         
         {/* Begründung und Details wurden entfernt und werden jetzt in contract-editor-with-contract.tsx angezeigt */}
-      </CardContent>
+        </CardContent>
     </Card>
   )
 }
