@@ -54,7 +54,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
       </div>
 
       {/* Main Content mit flexiblem Layout */}
-      <div className="flex flex-1 relative gap-4 mb-1 overflow-hidden">
+      <div className="flex flex-1 relative gap-4 overflow-hidden">
         {/* Vertragsliste - kann ein-/ausgeklappt werden */}
         <div
           className={`transition-all duration-300 flex flex-col h-full ${
@@ -65,7 +65,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
             <div className="relative px-1 pt-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input type="search" placeholder="Verträge durchsuchen..." className="pl-8 w-full" />
-            </div>
+          </div>
             <div className="flex-grow overflow-auto min-h-0">
               <ContractsList />
             </div>
@@ -73,9 +73,9 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
         </div>
 
         {/* Toggle Button für die Vertragsliste */}
-        <Button 
+                    <Button
           variant="outline" 
-          size="icon" 
+                      size="icon"
           className={`absolute top-1 ${isListCollapsed ? 'left-0' : 'md:left-[240px] lg:left-[272px]'} z-10 h-8 w-8 rounded-full shadow-sm border-muted-foreground/20 transition-all duration-300`}
           onClick={toggleList}
         >
@@ -84,7 +84,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
           ) : (
             <ChevronLeft className="h-4 w-4" />
           )}
-        </Button>
+                    </Button>
 
         {/* Content Area - nimmt immer volle Breite des Tab-Menüs ein */}
         <div className="flex-1 transition-all duration-300 h-full">
@@ -93,12 +93,12 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
               {contractId ? (
                 <div className="h-full">
                   <ContractEditorWithContract contractId={contractId as Id<"contracts">} />
-                </div>
+              </div>
               ) : (
                 <div className="text-center text-muted-foreground py-8">
                   Bitte wählen Sie einen Vertrag aus, um den Vertragseditor zu starten.
-                </div>
-              )}
+            </div>
+          )}
             </TabsContent>
             <TabsContent value="risikoanalyse" className="h-full mt-0">
               {contractId && contract ? (
@@ -108,21 +108,21 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
               ) : (
                 <div className="text-center text-muted-foreground py-8">
                   Bitte wählen Sie einen Vertrag aus, um die Risikoanalyse zu starten.
-                </div>
+        </div>
               )}
-            </TabsContent>
+              </TabsContent>
             <TabsContent value="verhandlung" className="h-full mt-0">
-              {contractId ? (
+                {contractId ? (
                 <div className="h-full">
-                  <NegotiationSimulator contractId={contractId as Id<"contracts">} />
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  Bitte wählen Sie einen Vertrag aus, um Verhandlungen zu starten.
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+                    <NegotiationSimulator contractId={contractId as Id<"contracts">} />
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    Bitte wählen Sie einen Vertrag aus, um Verhandlungen zu starten.
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
         </div>
       </div>
     </div>

@@ -5,10 +5,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp } from "lucide-react"
+import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp, Trash, Send, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
-import { CardDescription } from "@/components/ui/card"
 import type { EditorSection } from "./contract-editor-with-contract"
 
 interface ContractSectionProps {
@@ -16,13 +15,34 @@ interface ContractSectionProps {
   isActive: boolean
   onClick: () => void
   onUpdate: (updatedContent: string) => void
+  onCollapsedChange?: (isCollapsed: boolean) => void
+  onRemoveClause?: (sectionId: string) => void
+  onOptimizeWithAI?: (sectionId: string, text?: string) => void
+  onSubmitCustomFormulation?: (sectionId: string, formulation: string) => void
+  onApplyAlternativeFormulation?: (sectionId: string, alternativeId: string) => void
+  optimizingSectionId?: string | null
+  onToggleDetails?: (sectionId: string, e: React.MouseEvent) => void
+  detailsVisible?: boolean
 }
 
-export function ContractSection({ section, isActive, onClick, onUpdate }: ContractSectionProps) {
+export function ContractSection({ 
+  section, 
+  isActive, 
+  onClick, 
+  onUpdate, 
+  onCollapsedChange,
+  onRemoveClause,
+  onOptimizeWithAI,
+  onSubmitCustomFormulation,
+  onApplyAlternativeFormulation,
+  optimizingSectionId,
+  onToggleDetails,
+  detailsVisible
+}: ContractSectionProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(section.content)
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
+  // Initialisiere content, wenn sich section.content ändert
   useEffect(() => {
     setContent(section.content)
   }, [section.content, section.title])
@@ -71,9 +91,11 @@ export function ContractSection({ section, isActive, onClick, onUpdate }: Contra
     setIsEditing(false)
   }
 
-  const toggleCollapse = (e: React.MouseEvent) => {
+  const handleToggleDetails = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setIsCollapsed(!isCollapsed)
+    if (onToggleDetails) {
+      onToggleDetails(section.id, e)
+    }
   }
 
   const getEvaluationText = (evaluation: string) => {
@@ -92,7 +114,12 @@ export function ContractSection({ section, isActive, onClick, onUpdate }: Contra
         getRiskBorder(section.risk, section.needsRenegotiation, section.urgentAttention),
         section.removed ? "opacity-70" : "",
       )}
-      onClick={!isEditing && !isCollapsed ? onClick : undefined}
+      onClick={(e) => {
+        // Verhindere unnötige Neuaktivierungen
+        if (!isEditing && !isActive) {
+          onClick();
+        }
+      }}
     >
       <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
         <div className="flex items-center gap-2 flex-grow min-w-0">
@@ -108,10 +135,10 @@ export function ContractSection({ section, isActive, onClick, onUpdate }: Contra
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={toggleCollapse}
-            title={isCollapsed ? "Ausklappen" : "Einklappen"}
+            onClick={handleToggleDetails}
+            title={detailsVisible ? "Details ausblenden" : "Details anzeigen"}
           >
-            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {detailsVisible ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
           {isEditing ? (
             <>
@@ -131,37 +158,26 @@ export function ContractSection({ section, isActive, onClick, onUpdate }: Contra
           )}
         </div>
       </CardHeader>
-      {!isCollapsed && (
-        <CardContent className="p-4 pt-2" onClick={isEditing ? (e) => e.stopPropagation() : undefined}>
-          {isEditing ? (
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="min-h-[150px] font-normal text-sm border-primary/50 focus:border-primary focus:ring-primary/30"
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <p className="text-sm whitespace-pre-wrap cursor-text" onClick={onClick}>{section.content}</p>
-          )}
-          
-          {isActive && !isEditing && (section.reason || section.recommendation) && (
-            <div className="mt-3 pt-3 border-t border-dashed space-y-2">
-              {section.reason && (
-                  <div className="bg-muted/50 p-2 rounded">
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">Begründung ({getEvaluationText(section.evaluation)}):</p>
-                      <p className="text-xs whitespace-pre-wrap">{section.reason}</p>
-                  </div>
-              )}
-              {section.recommendation && (
-                  <div className="bg-primary/5 p-2 rounded">
-                      <p className="text-xs font-semibold text-primary/80 mb-1">Empfehlung:</p>
-                      <p className="text-xs whitespace-pre-wrap">{section.recommendation}</p>
-                  </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      )}
+      <CardContent className="p-4 pt-2" onClick={isEditing ? (e) => e.stopPropagation() : undefined}>
+        {isEditing ? (
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="min-h-[150px] font-normal text-sm border-primary/50 focus:border-primary focus:ring-primary/30"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <p className="text-sm whitespace-pre-wrap cursor-text" onClick={(e) => {
+            e.stopPropagation();
+            // Nur aktivieren, wenn die Sektion nicht schon aktiv ist
+            if (!isActive) {
+              onClick();
+            }
+          }}>{section.content}</p>
+        )}
+        
+        {/* Begründung und Details wurden entfernt und werden jetzt in contract-editor-with-contract.tsx angezeigt */}
+      </CardContent>
     </Card>
   )
 }

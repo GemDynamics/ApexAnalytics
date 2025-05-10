@@ -426,7 +426,6 @@ export const uploadFileAction = action({
 export const optimizeClauseWithAI = action({
     args: {
         clauseText: v.string(),
-        // Optional: Kontext hinzufügen, z.B. Vertragstyp, ursprüngliche Bewertung
         context: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
@@ -437,29 +436,33 @@ export const optimizeClauseWithAI = action({
             throw new ConvexError("GEMINI_API_KEY is not configured.");
         }
 
-        // Angepasster Prompt für Optimierung/Alternativen
-        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel und optionalem Kontext, 1-3 verbesserte oder alternative Formulierungen vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer sind. Berücksichtige dabei gängige Praktiken und potenziell das deutsche/österreichische Baurecht.
-        Gib als Ergebnis NUR ein valides JSON-Array von Strings zurück. Jeder String im Array ist eine alternative Formulierung. Beispiel: ["Alternative Formulierung 1", "Alternative Formulierung 2"]
-        Wenn keine sinnvolle Alternative möglich ist oder die Klausel bereits optimal erscheint, gib ein leeres Array zurück: [].`;
+        // Angepasster Prompt für direkte Optimierung
+        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel, eine verbesserte Formulierung vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer ist. Berücksichtige dabei gängige Praktiken und potenziell das deutsche/österreichische Baurecht.
+        
+        Gib als Ergebnis NUR ein valides JSON-Array mit EINEM String zurück. Dieser String ist die optimierte Formulierung. Beispiel: ["Hier ist der optimierte Text der Klausel."]`;
 
-        const userPrompt = `Bitte optimiere die folgende Vertragsklausel für einen Bauunternehmer oder schlage 1-3 faire Alternativen vor. Konzentriere dich auf Klarheit, Risikominimierung und Ausgewogenheit.
+        const userPrompt = `Bitte optimiere die folgende Vertragsklausel für einen Bauunternehmer. Konzentriere dich auf Klarheit, Risikominimierung und Ausgewogenheit.
 
 Klausel:
 "${args.clauseText}"
 
 ${args.context ? `\nZusätzlicher Kontext:\n${args.context}` : ''}
 
-Gib das Ergebnis als JSON-Array von Strings zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
+Gib das Ergebnis als JSON-Array mit einem einzigen String zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
 
-        let alternativeFormulations: string[] = [];
         try {
             const requestBody: Gemini.RequestBody = {
                 contents: [
                     { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
                 ],
-                // Ggf. safetySettings und generationConfig anpassen
+                generationConfig: {
+                    temperature: 0.3, // Niedrigere Temperatur für stabilere Ergebnisse
+                    topP: 0.8,
+                    topK: 40
+                }
             };
 
+            console.log("Sending request to Gemini API for clause optimization...");
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -469,19 +472,21 @@ Gib das Ergebnis als JSON-Array von Strings zurück, wie im Systemprompt beschri
             if (!response.ok) {
                 const errorBody = await response.text();
                 console.error(`Gemini API error during optimization: ${response.status} ${response.statusText}`, errorBody);
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                // Fallback-Antwort bei API-Fehler
+                return [args.clauseText]; // Gib den ursprünglichen Text zurück
             }
 
             const responseData: Gemini.GenerateContentResponse = await response.json();
             if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
                  console.error("Gemini API response is not in the expected format during optimization", responseData);
-                 throw new Error("Unexpected Gemini API response format.");
+                 // Fallback-Antwort bei unerwartetem Format
+                 return [args.clauseText]; // Gib den ursprünglichen Text zurück
             }
 
             const geminiOutput = responseData.candidates[0].content.parts[0].text;
             let cleanedOutput = geminiOutput.trim();
 
-            // JSON Bereinigung (ähnlich wie bei analyzeContractChunk)
+            // JSON Bereinigung
             if (cleanedOutput.startsWith("```json")) {
                 cleanedOutput = cleanedOutput.substring(7);
                 if (cleanedOutput.endsWith("```")) {
@@ -489,37 +494,47 @@ Gib das Ergebnis als JSON-Array von Strings zurück, wie im Systemprompt beschri
                 }
             } else if (cleanedOutput.startsWith("```")) {
                 cleanedOutput = cleanedOutput.substring(3);
-                 if (cleanedOutput.endsWith("```")) {
+                if (cleanedOutput.endsWith("```")) {
                     cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
                 }
             }
-            if (cleanedOutput.endsWith("```")) {
-                cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
-            }
             cleanedOutput = cleanedOutput.trim();
-
+            
             try {
+                // Versuche, das JSON zu parsen
                 const parsedJson = JSON.parse(cleanedOutput);
-                if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'string')) {
-                    alternativeFormulations = parsedJson;
-                } else {
-                    console.warn("Parsed JSON from Gemini (optimization) is not an array of strings:", parsedJson);
-                    // Versuche, es zu interpretieren, falls es ein String oder Objekt ist
-                    if (typeof parsedJson === 'string') alternativeFormulations = [parsedJson];
-                    // Fallback: leeres Array
+                
+                if (Array.isArray(parsedJson) && parsedJson.length > 0 && typeof parsedJson[0] === 'string') {
+                    // Erfolgreicher Fall: Ein JSON-Array mit einem String als erstem Element
+                    console.log("Successfully parsed optimized clause from AI response");
+                    return [parsedJson[0]]; // Nur die erste Alternative zurückgeben
+                } else if (typeof parsedJson === 'string') {
+                    // Falls direkt ein String zurückgegeben wird
+                    return [parsedJson];
+                } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+                    // Falls ein Objekt zurückgegeben wird, erste String-Eigenschaft verwenden
+                    const stringValue = Object.values(parsedJson).find(val => typeof val === 'string');
+                    if (stringValue) {
+                        return [stringValue];
+                    }
                 }
-            } catch (parseError: any) {
-                console.error("Failed to parse Gemini JSON output for optimization:", cleanedOutput, "Error:", parseError);
-                // Fallback: leeres Array oder Fehlermeldung werfen
-                 throw new Error(`Failed to parse optimization suggestions from AI: ${parseError.message}`);
+                
+                // Wenn kein String gefunden wurde, ursprünglichen Text zurückgeben
+                return [args.clauseText];
+            } catch (parseError) {
+                // Wenn das JSON-Parsing fehlschlägt, versuche, den Text direkt zu verwenden
+                if (cleanedOutput && cleanedOutput.length > 0) {
+                    return [cleanedOutput]; // Rohen Text verwenden, wenn er nicht leer ist
+                }
+                
+                // Fallback bei allen anderen Fehlern
+                return [args.clauseText];
             }
 
-        } catch (error: any) {
-            console.error(`Error optimizing clause with AI:`, error.message, error.stack);
-            throw new ConvexError(`Failed to get optimization from AI: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            console.error(`Error optimizing clause with AI:`, error);
+            // Fallback-Antwort bei Fehlern
+            return [args.clauseText]; // Gib den ursprünglichen Text zurück
         }
-
-        console.log(`Received ${alternativeFormulations.length} alternative formulations from AI.`);
-        return alternativeFormulations; // Gibt das Array der Strings zurück
     },
 }); 

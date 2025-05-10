@@ -46,24 +46,24 @@ export function ContractsList() {
         <CardDescription>Liste Ihrer hochgeladenen und analysierten Verträge.</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-y-auto p-2">
-        {isLoading ? (
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <div className="space-y-1">
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-3 w-24" />
+          {isLoading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
                   </div>
+                  <Skeleton className="h-5 w-20" />
                 </div>
-                <Skeleton className="h-5 w-20" />
-              </div>
-            ))}
-          </div>
-        ) : contracts && contracts.length > 0 ? (
-          <div className="space-y-3">
-            {contracts.map((contract) => (
+              ))}
+            </div>
+          ) : contracts && contracts.length > 0 ? (
+            <div className="space-y-3">
+              {contracts.map((contract) => (
               <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50">
                 <div className="flex items-center justify-between p-3 border rounded-lg w-full min-w-0">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -71,12 +71,12 @@ export function ContractsList() {
                     <div className="flex-1 min-w-0 pr-2">
                       <p className="font-medium text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">
                         {stripFileExtension(contract.fileName)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
-                      </p>
-                    </div>
-                  </div>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+                        </p>
+            </div>
+            </div>
                   {contract.status !== 'completed' && (
                     <Badge 
                       variant={getStatusVariant(contract.status)}
@@ -88,13 +88,13 @@ export function ContractsList() {
                       {getStatusText(contract.status)}
                     </Badge>
                   )}
-                </div>
-              </Link>
-            ))}
           </div>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">Noch keine Verträge hochgeladen.</p>
-        )}
+                </Link>
+        ))}
+      </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">Noch keine Verträge hochgeladen.</p>
+          )}
       </CardContent>
     </Card>
   )

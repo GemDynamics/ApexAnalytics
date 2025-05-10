@@ -32,9 +32,9 @@ export default function AnalytikPage() {
 
   if (contracts && contracts.length === 0) {
     // Wenn keine Verträge vorhanden sind, zeige eine Nachricht an
-    return (
+  return (
       <>
-        <DashboardHeader heading="Analytik" text="Vertragsanalyse und Verhandlungsvorbereitung" />
+      <DashboardHeader heading="Analytik" text="Vertragsanalyse und Verhandlungsvorbereitung" />
         <div className="text-center text-muted-foreground py-8">
           <p>Sie haben noch keine Verträge hochgeladen.</p>
           <p className="text-sm mt-2">

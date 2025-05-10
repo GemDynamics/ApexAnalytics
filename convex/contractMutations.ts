@@ -323,4 +323,35 @@ export const updateContractAnalysis = mutation({
     console.log(`Successfully updated analysis/sections for contract ${contractId}`);
     return { success: true };
   },
+});
+
+// Funktion zum Aktualisieren des Dateinamens
+export const updateFileName = mutation({
+  args: {
+    contractId: v.id("contracts"),
+    newFileName: v.string()
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Nicht authentifiziert");
+    }
+    
+    // Prüfen, ob der Vertrag existiert und dem Benutzer gehört
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+      throw new ConvexError("Vertrag nicht gefunden");
+    }
+    
+    if (contract.userId !== identity.subject) {
+      throw new ConvexError("Nicht berechtigt, diesen Vertrag zu aktualisieren");
+    }
+    
+    // Dateinamen aktualisieren
+    await ctx.db.patch(args.contractId, {
+      fileName: args.newFileName
+    });
+    
+    return { success: true };
+  }
 }); 

@@ -86,12 +86,12 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
   if (isLoading) {
     return (
       <AnalyticsLayout contractId={contractId}>
-        <div className="flex items-center justify-center h-[calc(100vh-14rem)]">
-          <ApiLoading
-            title="Vertragsanalyse wird geladen"
-            description="Bitte warten Sie, während die Vertragsdaten geladen werden..."
-          />
-        </div>
+      <div className="flex items-center justify-center h-[calc(100vh-14rem)]">
+        <ApiLoading
+          title="Vertragsanalyse wird geladen"
+          description="Bitte warten Sie, während die Vertragsdaten geladen werden..."
+        />
+      </div>
       </AnalyticsLayout>
     );
   }
@@ -99,21 +99,21 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
   if (!contract) {
     return (
       <AnalyticsLayout contractId={contractId}>
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-14rem)]">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle className="text-destructive">Fehler: Vertrag nicht gefunden</CardTitle>
-              <CardDescription>
-                Der angeforderte Vertrag konnte nicht gefunden werden oder Sie haben keine Berechtigung, ihn einzusehen.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="default" className="w-full">
-                <Link href="/dashboard">Zurück zum Dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-14rem)]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">Fehler: Vertrag nicht gefunden</CardTitle>
+            <CardDescription>
+              Der angeforderte Vertrag konnte nicht gefunden werden oder Sie haben keine Berechtigung, ihn einzusehen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="default" className="w-full">
+              <Link href="/dashboard">Zurück zum Dashboard</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
       </AnalyticsLayout>
     );
   }
@@ -121,22 +121,22 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
   if (contract.status !== "completed") {
     return (
       <AnalyticsLayout contractId={contractId}>
-        <div className="container max-w-screen-lg mx-auto py-8 px-4">
-          <div className="p-6 border rounded-lg bg-card mb-6">
-            <p className="text-muted-foreground">
-              Hochgeladen am: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
-            </p>
-            <p className="text-muted-foreground mt-1">
-              Status: <span className="font-semibold">{contract.status}</span>
-            </p>
-          </div>
-          <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
-            <p className="text-lg text-blue-700 font-medium">
-              Die Vertragsanalyse läuft noch. Bitte haben Sie etwas Geduld.
-            </p>
-            <p className="text-sm text-blue-600 mt-2">
+      <div className="container max-w-screen-lg mx-auto py-8 px-4">
+        <div className="p-6 border rounded-lg bg-card mb-6">
+          <p className="text-muted-foreground">
+            Hochgeladen am: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+          </p>
+          <p className="text-muted-foreground mt-1">
+            Status: <span className="font-semibold">{contract.status}</span>
+          </p>
+        </div>
+        <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
+          <p className="text-lg text-blue-700 font-medium">
+            Die Vertragsanalyse läuft noch. Bitte haben Sie etwas Geduld.
+          </p>
+          <p className="text-sm text-blue-600 mt-2">
               Diese Seite wird automatisch aktualisiert, sobald die Analyse abgeschlossen ist.
-            </p>
+          </p>
           </div>
         </div>
       </AnalyticsLayout>
@@ -154,11 +154,11 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
         ) : contract?.status === "failed" ? (
           <div className="text-sm text-red-500">
             <span className="font-medium">Status:</span> Analyse fehlgeschlagen
-          </div>
+        </div>
         ) : (
           <div className="text-sm text-amber-500">
             <span className="font-medium">Status:</span> In Bearbeitung
-          </div>
+        </div>
         )}
       </div>
     </AnalyticsLayout>

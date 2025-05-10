@@ -10,16 +10,16 @@ export default function NeueAnalysePage() {
         text="Laden Sie einen Vertrag hoch, um eine Analyse zu starten"
       />
       <Card>
-        <CardHeader>
+            <CardHeader>
           <CardTitle>Vertrag hochladen</CardTitle>
-          <CardDescription>
+              <CardDescription>
             Laden Sie einen Vertrag im PDF-, DOCX- oder TXT-Format hoch
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FileUpload />
-        </CardContent>
-      </Card>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <FileUpload />
+            </CardContent>
+          </Card>
     </>
   )
 }
