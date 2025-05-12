@@ -1,0 +1,10 @@
+{
+  "id": "legal_at_003",
+  "textContent": "Nach österreichischem Recht sind Pay-if-paid und Pay-when-paid Klauseln streng reglementiert. Rechtliche Grundlage ist primär § 879 ABGB (Sittenwidrigkeit). 'Pay-if-paid' Klauseln (Zahlung nur wenn Hauptauftragnehmer bezahlt wird – überträgt das Insolvenzrisiko des AG auf den Subunternehmer) werden in Österreich nahezu einhellig als sittenwidrig und nichtig nach § 879 ABGB angesehen. 'Pay-when-paid' Klauseln (Zahlung an Subunternehmer fällig, wenn Hauptauftragnehmer bezahlt wird – primär ein Zeitplanungsmechanismus) werden kritisch gesehen. Wenn sie effektiv das Insolvenzrisiko des AG verschiebt oder es dem Hauptauftragnehmer ermöglicht, die Zahlung aufgrund eigener Streitigkeiten mit dem AG unbegrenzt zurückzuhalten, kann sie ebenfalls nach § 879 ABGB nichtig sein. Die österreichische Haltung ist tendenziell strenger gegen eine solche Risikoüberwälzung.",
+  "metadata": {
+    "source": "Juristische Analyse des österreichische Vertragsrechts.md",
+    "type": "Gesetzliche Regelung",
+    "keywords": ["Pay-when-paid", "Pay-if-paid", "§ 879 ABGB", "Subunternehmer", "Zahlungsbedingungen", "österreichisches Recht"],
+    "last_updated": "2024-07-15"
+  }
+} 

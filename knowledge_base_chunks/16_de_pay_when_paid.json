@@ -1,0 +1,10 @@
+{
+  "id": "legal_de_003",
+  "textContent": "Nach deutschem Recht sind 'Pay-when-paid' / 'Pay-if-paid' Klauseln in AGB gemäß § 307 BGB generell unwirksam. Diese Klauseln machen die Fälligkeit der Zahlung an den Subunternehmer davon abhängig, dass der Hauptunternehmer seinerseits Zahlung vom Bauherrn erhalten hat. Sie wälzen das Insolvenz- und Zahlungsrisiko des Hauptauftraggebers unangemessen auf den Subunternehmer ab. Die Rechtsprechung (insb. OLG-Urteile, bestätigt durch BGH-Nichtannahmebeschlüsse) sieht hierin durchweg eine unangemessene Benachteiligung. § 641 Abs. 2 BGB a.F. (Durchgriffsfälligkeit) wurde abgeschafft bzw. nicht in das neue Bauvertragsrecht übernommen, was die Unwirksamkeit solcher Klauseln unterstreicht.",
+  "metadata": {
+    "source": "Juristische Analyse des deutschen Vertragsrechts.md",
+    "type": "Gesetzliche Regelung",
+    "keywords": ["Pay-when-paid", "Pay-if-paid", "Zahlungsbedingungen", "§ 307 BGB", "Subunternehmer", "deutsches Recht"],
+    "last_updated": "2024-07-15"
+  }
+} 

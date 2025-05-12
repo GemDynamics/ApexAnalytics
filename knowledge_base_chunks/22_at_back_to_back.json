@@ -1,0 +1,10 @@
+{
+  "id": "legal_at_004",
+  "textContent": "Nach österreichischem Recht sind Back-to-Back-Klauseln in Subunternehmerverträgen rechtlich reguliert. Rechtliche Grundlagen sind § 879 ABGB (Sittenwidrigkeit, Transparenz) und § 864a ABGB (überraschende Klauseln). Diese Klauseln sind nicht per se unwirksam, aber problematisch, wenn: 1) Der Subunternehmer keinen vollständigen und ordnungsgemäßen Zugang zu den Hauptvertragsbedingungen hat. 2) Die weitergegebenen Bedingungen unangemessen belastend oder für den spezifischen Leistungsumfang des Subunternehmers irrelevant sind. 3) Sie zu einer unfairen Risikoverteilung führen. Transparenz ist entscheidend: Der Subunternehmer muss klar verstehen, welche Verpflichtungen er übernimmt. Globale Verweise auf den Hauptvertrag ohne Spezifizierung der anwendbaren Teile können intransparent sein. Eine Back-to-Back-Klausel kann missbräuchlich werden, wenn sie dazu dient, alle Verantwortlichkeiten blind auf einen Subunternehmer abzuwälzen.",
+  "metadata": {
+    "source": "Juristische Analyse des österreichische Vertragsrechts.md",
+    "type": "Gesetzliche Regelung",
+    "keywords": ["Back-to-Back", "Flow-down", "§ 879 ABGB", "§ 864a ABGB", "Subunternehmer", "österreichisches Recht"],
+    "last_updated": "2024-07-15"
+  }
+} 

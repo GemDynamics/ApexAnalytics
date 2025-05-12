@@ -1,0 +1,10 @@
+{
+  "id": "rule_yellow_flag_006",
+  "textContent": "Ein Ausschluss der Sub-Sub-Vergabe ist verhandelbar, aber kritisch zu prüfen. Da mit Montagepartnern (Subfirmen) gearbeitet wird, ist ein Ausschluss derselben nachteilig und sollte verhandelt werden. Klauseln, die die Beauftragung von Subunternehmern oder deren weitere Subunternehmer verbieten, sollten angepasst und verhandelt werden.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Verhandelbare Klausel",
+    "keywords": ["Sub-Sub-Vergabe", "Subunternehmer", "Montagepartner", "Nachunternehmer", "verhandelbare Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

@@ -184,55 +184,77 @@ function ContractUploadForm() {
 }
 
 // Haupt-Dashboard Komponente
-export default function HomePage() {
-  const contracts = useQuery(api.contractsQueries.listUserContracts)
-
+export default function Home() {
   return (
-    <div className="container mx-auto py-8 px-4 max-w-screen-lg">
-      {/* Header der Seite (nicht der App-Header) */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Vertragsanalyse Dashboard</h1>
-        <p className="text-muted-foreground">
-          Übersicht Ihrer Vertragsanalysen und Risikobewertungen
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-4xl w-full bg-card rounded-2xl shadow-xl p-8 md:p-12">
+        <h1 className="text-4xl md:text-5xl font-bold text-center mb-8 text-foreground">
+          KI-gestützte Vertragsanalyse
+        </h1>
+        
+        <p className="text-lg text-muted-foreground text-center mb-10">
+          Analysieren Sie Verträge schnell und präzise mit unserem intelligenten System,
+          das auf neuesten KI-Technologien und juristischen Wissensbasen basiert.
         </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          <div className="bg-muted p-6 rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold mb-3 text-primary">
+              Strukturierte Analyse
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Unser System wandelt unstrukturierte Vertragstexte in strukturierte Elemente um
+              und ermöglicht eine detaillierte Klausel-für-Klausel-Analyse.
+            </p>
+          </div>
+          
+          <div className="bg-muted p-6 rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold mb-3 text-green-600 dark:text-green-400">
+              Juristische Expertise
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Mit einer umfangreichen Wissensbasis aus deutscher und österreichischer Rechtsprechung
+              werden kritische Klauseln zuverlässig identifiziert.
+            </p>
+          </div>
+          
+          <div className="bg-muted p-6 rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold mb-3 text-purple-600 dark:text-purple-400">
+              Klauseloptimierung
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Alternative Klauselformulierungen werden vorgeschlagen und können mit
+              KI-Unterstützung weiter optimiert werden.
+            </p>
+          </div>
+          
+          <div className="bg-muted p-6 rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold mb-3 text-amber-600 dark:text-amber-400">
+              Ampelsystem
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Klauseln werden nach dem Ampelprinzip kategorisiert: Rot (kritisch),
+              Gelb (verhandelbar) und Grün (akzeptabel).
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <Link 
+            href="/new-analysis"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-6 rounded-lg text-lg text-center transition-all"
+          >
+            Neue Analyse starten
+          </Link>
+          
+          <Link 
+            href="/demo"
+            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-3 px-6 rounded-lg text-lg text-center transition-all"
+          >
+            Demo ansehen
+          </Link>
+        </div>
       </div>
-
-      {/* Hauptinhalt in zwei Spalten oder untereinander */}
-      <div className="grid grid-cols-1 gap-8">
-        {/* Letzte Analysen */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Letzte Analysen</CardTitle>
-            <CardDescription>
-              Ihre zuletzt hochgeladenen und analysierten Verträge.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {contracts === undefined && (
-                // Ladezustand
-                <div className="space-y-3">
-                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
-                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
-                  <div className="h-16 bg-muted rounded-lg animate-pulse"></div>
-                </div>
-              )}
-              {contracts && contracts.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Noch keine Verträge analysiert.
-                </p>
-              )}
-              {contracts && contracts.map((contract) => (
-                <ContractItem key={contract._id} contract={contract} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Neuer Vertrag analysieren */}
-        <ContractUploadForm />
-
-      </div>
-    </div>
-  )
+    </main>
+  );
 }

@@ -1,0 +1,10 @@
+{
+  "id": "rule_yellow_flag_001",
+  "textContent": "Klauseln zum gestörten Bauablauf sind verhandelbar, aber kritisch zu prüfen. Falls eine Bauzeitverlängerung und Mehrkosten ausgeschlossen sind, sollte dies verhandelt werden, um die Rechte auf Verlängerung und Mehrkostenansprüche zu sichern. Ein vollständiger Ausschluss von Ansprüchen bei gestörtem Bauablauf ist problematisch.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Verhandelbare Klausel",
+    "keywords": ["Gestörter Bauablauf", "Bauzeitverlängerung", "Mehrkosten", "Anspruch", "verhandelbare Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

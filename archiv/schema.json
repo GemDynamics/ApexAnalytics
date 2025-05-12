@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Vertragsanalyse Knowledge Base Schema",
+  "description": "Schema für die Vektordatenbank zur juristischen Vertragsanalyse",
+  "type": "object",
+  "properties": {
+    "knowledge_chunks": {
+      "type": "array",
+      "description": "Array von Wissens-Chunks für die Vertragsanalyse",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Eindeutige ID des Wissens-Chunks"
+          },
+          "textContent": {
+            "type": "string",
+            "description": "Der eigentliche Textinhalt des Wissens-Chunks"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Quelle des Wissens-Chunks"
+              },
+              "type": {
+                "type": "string",
+                "description": "Typ des Wissens-Chunks (z.B. 'Unzulässige Klausel', 'Gesetzliche Regelung', etc.)",
+                "enum": [
+                  "Unzulässige Klausel",
+                  "Verhandelbare Klausel",
+                  "Gesetzliche Regelung",
+                  "Regelwerk",
+                  "Gerichtsentscheidung",
+                  "Experteneinschätzung"
+                ]
+              },
+              "keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Schlüsselwörter für die semantische Suche"
+              },
+              "last_updated": {
+                "type": "string",
+                "format": "date",
+                "description": "Datum der letzten Aktualisierung"
+              }
+            },
+            "required": ["source", "type", "keywords"]
+          },
+          "vector_embedding": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "Vektor-Einbettung des Textinhalts für die Ähnlichkeitssuche"
+          }
+        },
+        "required": ["id", "textContent", "metadata"]
+      }
+    },
+    "analysis_rules": {
+      "type": "object",
+      "description": "Regeln für die Ampel-Klassifizierung",
+      "properties": {
+        "red_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs der Wissens-Chunks, die Rot-Flags definieren"
+        },
+        "yellow_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs der Wissens-Chunks, die Gelb-Flags definieren"
+        },
+        "green_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs der Wissens-Chunks, die Grün-Muster definieren"
+        }
+      }
+    }
+  },
+  "required": ["knowledge_chunks", "analysis_rules"]
+} 

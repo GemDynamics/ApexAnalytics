@@ -25,7 +25,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </Link>
           </div>
           <nav className="flex items-center gap-4">
-            <Link href="/">
+            <Link href="/dashboard">
               <Button variant="ghost" size="sm" className="rounded-full px-4">
                 Dashboard
               </Button>

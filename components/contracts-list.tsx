@@ -70,10 +70,10 @@ export function ContractsList() {
                     <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                     <div className="flex-1 min-w-0 pr-2">
                       <p className="font-medium text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">
-                        {stripFileExtension(contract.fileName)}
+                        {stripFileExtension(contract.fileName || 'Unbenannter Vertrag')}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+                          Hochgeladen: {contract.uploadedAt ? new Date(contract.uploadedAt).toLocaleDateString('de-DE') : '-'}
                         </p>
             </div>
             </div>

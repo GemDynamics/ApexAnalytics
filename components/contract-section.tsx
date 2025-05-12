@@ -9,6 +9,7 @@ import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp, Tras
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import type { EditorSection } from "./contract-editor-with-contract"
+import ReactMarkdown from 'react-markdown'
 
 interface ContractSectionProps {
   section: EditorSection
@@ -167,13 +168,15 @@ export function ContractSection({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-          <p className="text-sm whitespace-pre-wrap cursor-text" onClick={(e) => {
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words" onClick={(e) => {
             e.stopPropagation();
             // Nur aktivieren, wenn die Sektion nicht schon aktiv ist
             if (!isActive) {
               onClick();
             }
-          }}>{section.content}</p>
+            }}>
+             <ReactMarkdown>{section.content}</ReactMarkdown>
+           </div>
         )}
         
         {/* Begründung und Details wurden entfernt und werden jetzt in contract-editor-with-contract.tsx angezeigt */}

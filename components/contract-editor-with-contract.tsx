@@ -5,18 +5,33 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { ContractSection } from "@/components/contract-section"
-import { AlertTriangle, CheckCircle, Plus, Save, FileText, Undo, Redo, Copy, Trash, AlertCircle, Loader2, ChevronUp, ChevronDown, X, Download } from "lucide-react"
+import { 
+    AlertTriangle, CheckCircle, Plus, Save, FileText as FileTextIcon, Undo, Redo, 
+    Copy, Trash, AlertCircle, Loader2, ChevronUp, ChevronDown, X, Download, 
+    File as FileIcon // Importiere File und FileText Icons
+} from "lucide-react" 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Send } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
 import { useContract } from "@/hooks/useConvex"
 import { useMutation, useAction } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { toast } from "sonner"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
+import ReactMarkdown from "react-markdown"
+import { stripFileExtension } from "@/lib/utils"
 
 export interface EditorSection {
   id: string;
@@ -31,6 +46,7 @@ export interface EditorSection {
   alternativeFormulations?: { id: string; content: string }[];
   removed?: boolean;
   chunkNumber?: number;
+  elementType: string;
 }
 
 // Interface für den History-Eintrag
@@ -55,12 +71,20 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const editorScrollAreaRef = useRef<HTMLDivElement>(null)
   const fileNameInputRef = useRef<HTMLInputElement>(null)
+  const [isClient, setIsClient] = useState(false)
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [isExportingDocx, setIsExportingDocx] = useState(false)
 
   const { contract, isLoading } = useContract(contractId);
   const updateAnalysisMutation = useMutation(api.contractMutations.updateContractAnalysis);
   const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
   const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
   const updateFileNameMutation = useMutation(api.contractMutations.updateFileName);
+
+  // useEffect Hook, um isClient nach dem Mounten zu setzen
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Aktuelle Sektionen aus dem Verlauf ableiten
   const sections = history[historyIndex].sections;
@@ -75,83 +99,215 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   }, [history, historyIndex]);
 
   useEffect(() => {
-    if (contract) {
-      // Zuerst prüfen, ob bearbeitete Daten (editedAnalysis) vorhanden sind
-      if (contract.editedAnalysis && contract.editedAnalysis.length > 0) {
-        console.log("Lade bearbeitete Vertragsdaten aus editedAnalysis");
-        // Direkt die bearbeiteten Daten verwenden, da sie bereits im richtigen Format sind
-        setHistory([{ sections: contract.editedAnalysis }]);
-        setHistoryIndex(0);
-      } 
-      // Wenn keine bearbeiteten Daten verfügbar sind, aber analysisProtocol vorhanden
-      else if (contract.analysisProtocol && contract.analysisProtocol.length > 0) {
-        console.log("Lade ursprüngliche Vertragsdaten aus analysisProtocol");
-        const transformedSections: EditorSection[] = contract.analysisProtocol.map((clause, index) => {
-          let riskLevel: EditorSection["risk"] = "low";
-          switch (clause.evaluation.toLowerCase()) {
-            case "rot":
-              riskLevel = "high";
-              break;
-            case "gelb":
-              riskLevel = "medium";
-              break;
-            case "grün":
-              riskLevel = "low";
-              break;
-            case "fehler":
-              riskLevel = "error";
-              break;
-          }
+    if (contract && !isLoading) {
+      let initialSections: EditorSection[] = [];
+      let sourceUsed = "";
 
-          // Titel generieren basierend auf dem Inhalt der Klausel
-          let title = `Klausel ${index + 1}`;
-          
-          // Extrahiere Nummerierung aus dem Klauseltext, falls vorhanden
-          const numberMatch = clause.clauseText.match(/^(\d+\.[\d\.]*)\s+/);
-          if (numberMatch) {
-            // Verwende die gefundene Nummerierung im Titel
-            title = `§ ${numberMatch[1]} (Klausel ${index + 1})`;
-          } else {
-            // Wenn keine Nummerierung gefunden, extrahiere den Themenschwerpunkt
-            // Verwende die ersten 3-5 Wörter, max 40 Zeichen
-            const words = clause.clauseText.split(' ');
-            const thematicTitle = words.slice(0, 4).join(' ');
-            title = thematicTitle.length > 40 
-              ? thematicTitle.substring(0, 40) + '...' 
-              : thematicTitle;
-            title = `${index + 1}. ${title}`;
-          }
+      // Priorisiere structuredContractElements, falls vorhanden
+      if (contract.structuredContractElements && contract.structuredContractElements.length > 0) {
+        sourceUsed = "structuredContractElements";
+        console.log(`Lade Daten aus ${sourceUsed}`);
+        initialSections = contract.structuredContractElements
+          .sort((a, b) => a.globalOriginalOrder - b.globalOriginalOrder) // Nach Reihenfolge sortieren
+          .map((element, index) => {
+            
+            // Risiko ableiten
+        let riskLevel: EditorSection["risk"] = "low";
+            let needsRenegotiation = false;
+            let urgentAttention = false;
+            switch (element.evaluation?.toLowerCase()) {
+          case "rot":
+            riskLevel = "high";
+                needsRenegotiation = true;
+                urgentAttention = true;
+            break;
+          case "gelb":
+            riskLevel = "medium";
+                needsRenegotiation = true;
+            break;
+          case "grün":
+            riskLevel = "low";
+            break;
+              case "info": // Behandlung für "Info" - wie "low" oder eigener Status?
+                riskLevel = "low"; // Annahme: "Info" ist wie niedriges Risiko zu behandeln
+                break;
+          case "fehler":
+            riskLevel = "error";
+                needsRenegotiation = true; // Fehler erfordert Aufmerksamkeit
+                urgentAttention = true; // Fehler ist dringend
+                break;
+              default: // Falls evaluation null/undefined oder unbekannt
+                 if (element.reason || element.recommendation) {
+                    // Wenn es Begründung/Empfehlung gibt, aber keine Wertung,
+                    // behandeln wir es vorsichtshalber als mittleres Risiko
+                    riskLevel = "medium";
+                    needsRenegotiation = true;
+                 } else {
+                     riskLevel = "low";
+                 }
+            break;
+        }
 
-          return {
-            id: `clause-${clause.chunkNumber || '0'}-${index}`,
-            title: title,
-            content: clause.clauseText,
-            risk: riskLevel,
-            evaluation: clause.evaluation,
-            reason: clause.reason,
-            recommendation: clause.recommendation,
-            needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
-            urgentAttention: riskLevel === "high",
-            alternativeFormulations: [],
-            chunkNumber: clause.chunkNumber,
-          };
-        });
-        // Initialisiere die History mit den geladenen Daten
-        setHistory([{ sections: transformedSections }]);
-        setHistoryIndex(0);
-      } else if (!isLoading && contract) {
-          // Fall: Contract existiert, aber keine Analysedaten
-          setHistory([{ sections: [] }]);
-          setHistoryIndex(0);
+
+            // Titel-Extraktion aus Markdown
+            let title = `Element ${element.globalOriginalOrder + 1}`;
+            const markdownLines = element.markdownContent?.split('\\n') || [];
+            const firstLine = markdownLines[0]?.trim() || "";
+
+            if (firstLine.startsWith("# ")) {
+              title = firstLine.substring(2).trim();
+            } else if (firstLine.startsWith("## ")) {
+              title = firstLine.substring(3).trim();
+            } else if (firstLine.startsWith("### ")) {
+              title = firstLine.substring(4).trim();
+            } else if (element.elementType === "paragraph" || !element.markdownContent) {
+              // Für Paragraphen oder leeren Content: Verwende Anfang des Textes
+              const textSnippet = (element.markdownContent || "").substring(0, 50);
+              title = `Absatz ${element.globalOriginalOrder + 1}: ${textSnippet}${element.markdownContent && element.markdownContent.length > 50 ? '...' : ''}`;
+        } else {
+                // Fallback: Erste Zeile als Titel (falls keine # gefunden)
+                 title = firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+                 if (!title.trim()) { // Wenn erste Zeile leer ist, Fallback zum Element-Index
+                    title = `Element ${element.globalOriginalOrder + 1}`;
+                 }
+        }
+
+        return {
+              id: element.elementId, // Eindeutige ID vom Backend
+          title: title,
+              content: element.markdownContent || "", // Der Markdown-Inhalt
+          risk: riskLevel,
+              evaluation: element.evaluation || "N/A",
+              reason: element.reason || "",
+              recommendation: element.recommendation || "",
+              needsRenegotiation: needsRenegotiation,
+              urgentAttention: urgentAttention,
+              alternativeFormulations: [], // Wird später durch KI gefüllt
+              chunkNumber: element.globalOriginalOrder, // Verwende globalOriginalOrder
+              removed: false, // Standardmäßig nicht entfernt
+              // Füge elementType hinzu, um es später verwenden zu können (z.B. für Styling)
+              elementType: element.elementType,
+            } as EditorSection; // Type assertion
+          });
       }
+      // Fallback auf editedAnalysis (vom Benutzer gespeicherte Änderungen)
+      // ACHTUNG: editedAnalysis muss ggf. auch das elementType Feld enthalten oder wir müssen es hier raten
+      else if (contract.editedAnalysis && contract.editedAnalysis.length > 0) {
+        sourceUsed = "editedAnalysis";
+        console.log(`Lade Daten aus ${sourceUsed} (Fallback)`);
+        // Annahme: editedAnalysis hat bereits das EditorSection Format
+        // Füge ggf. fehlendes elementType hinzu
+        initialSections = contract.editedAnalysis.map((section: EditorSection) => ({
+          ...section,
+          elementType: section.elementType || 'unknown' // Füge Fallback für elementType hinzu
+        }));
+      }
+      // Fallback auf analysisProtocol (alte Struktur), falls nichts anderes vorhanden
+      else if (contract.analysisProtocol && contract.analysisProtocol.length > 0) {
+        sourceUsed = "analysisProtocol";
+        console.log(`Lade Daten aus ${sourceUsed} (Fallback - ALTE STRUKTUR)`);
+        initialSections = contract.analysisProtocol.map((clause, index) => {
+            // Bestehende Transformationslogik für analysisProtocol...
+            let riskLevel: EditorSection["risk"] = "low";
+            let needsRenegotiation = false;
+            let urgentAttention = false;
+            switch (clause.evaluation?.toLowerCase()) {
+              case "rot": riskLevel = "high"; needsRenegotiation = true; urgentAttention = true; break;
+              case "gelb": riskLevel = "medium"; needsRenegotiation = true; break;
+              case "grün": riskLevel = "low"; break;
+              case "fehler": riskLevel = "error"; needsRenegotiation = true; urgentAttention = true; break;
+              default: // Fallback für null/undefined/unbekannt
+                  if (clause.reason || clause.recommendation) {
+                       riskLevel = "medium"; needsRenegotiation = true; 
+                  } else {
+                      riskLevel = "low";
+                  }
+                  break;
+            }
+
+            let title = `Klausel ${index + 1}`;
+            // Titel-Extraktion (wie vorher, nur sicherstellen, dass clauseText existiert)
+             const firstLine = (clause.clauseText || "").split('\\n')[0]?.trim();
+             if (firstLine.startsWith("# ")) title = firstLine.substring(2).trim();
+             else if (firstLine.startsWith("## ")) title = firstLine.substring(3).trim();
+             else if (firstLine.startsWith("### ")) title = firstLine.substring(4).trim();
+             else title = firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
+             if (!title.trim()) title = `Klausel ${index + 1}`;
+
+
+            return {
+              id: `clause-${clause.chunkNumber || '0'}-${index}`, // ID-Generierung wie zuvor
+              title: title,
+              content: clause.clauseText || "", // Sicherstellen, dass content ein String ist
+              risk: riskLevel,
+              evaluation: clause.evaluation || "N/A",
+              reason: clause.reason || "",
+              recommendation: clause.recommendation || "",
+              needsRenegotiation: needsRenegotiation,
+              urgentAttention: urgentAttention,
+          alternativeFormulations: [],
+          chunkNumber: clause.chunkNumber,
+              elementType: 'clauseH3', // Annahme: Altes Protokoll waren nur Klauseln
+              removed: false,
+        };
+      });
+      }
+      // Wenn gar keine Daten vorhanden
+      else {
+        console.log("Keine Analysedaten (structured, edited, protocol) gefunden.");
+        initialSections = [];
+      }
+
+      // Initialisiere die History nur, wenn sich die Datenquelle oder die Anzahl der Sektionen geändert hat
+      // Oder wenn die History leer ist
+      if (
+        history.length === 1 && history[0].sections.length === 0 || // Wenn History leer ist
+        JSON.stringify(history[historyIndex].sections) !== JSON.stringify(initialSections) // Wenn sich Daten geändert haben
+      ) {
+          console.log(`Initialisiere History mit Daten aus: ${sourceUsed || 'Nichts'}`);
+          setHistory([{ sections: initialSections }]);
+      setHistoryIndex(0);
+          // Setze auch aktive/kollabierte/Details zurück
+          setActiveSectionId(null);
+          setCollapsedSections(new Set());
+          setDetailsVisible(new Set());
+      }
+    
     } else if (!isLoading && !contract) {
+      // Fall: Contract ID ungültig oder nicht gefunden
+      console.log("Vertrag nicht gefunden oder Ladefehler.");
         setHistory([{ sections: [] }]);
         setHistoryIndex(0);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contract, isLoading]);
 
   const addNewSection = () => {
     console.warn("addNewSection: Diese Funktion muss überarbeitet werden, um mit dynamischen Vertragsdaten zu arbeiten.")
+    // TODO: Logik zum Hinzufügen einer neuen EditorSection zum History-State
+    // Eine neue, leere Sektion mit einer eindeutigen temporären ID erstellen
+    const newTempId = `new-section-${Date.now()}`;
+    const newSection: EditorSection = {
+      id: newTempId,
+      title: "Neue Sektion",
+      content: `### ${newTempId} Neue Sektion\n\nInhalt hier eingeben...`, // Start mit Markdown
+      risk: "low",
+      evaluation: "N/A",
+      needsRenegotiation: false,
+      urgentAttention: false,
+      alternativeFormulations: [],
+      removed: false,
+      chunkNumber: (sections[sections.length - 1]?.chunkNumber ?? -1) + 1, // Fortlaufende Nummer
+      elementType: 'clauseH3' // Standardmäßig als Klausel
+    };
+
+    const currentSections = history[historyIndex].sections;
+    updateSectionsAndHistory([...currentSections, newSection]);
+    // Optional: Zur neuen Sektion scrollen und sie aktivieren
+    setTimeout(() => {
+        setActiveSectionId(newTempId);
+        // Scroll-Logik hier einfügen, falls gewünscht
+    }, 100);
   };
 
   const getRiskIcon = (risk: EditorSection["risk"]) => {
@@ -177,34 +333,19 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
             return {
               ...section,
               content: alternative.content,
-              risk: "low" as EditorSection["risk"],
-              evaluation: "Grün",
+              risk: "low" as EditorSection["risk"], // Zurücksetzen auf niedriges Risiko nach Übernahme
+              evaluation: "Grün (Alternative übernommen)", // Optional: Status anpassen
               needsRenegotiation: false,
               urgentAttention: false,
+              // Optional: Alternativen entfernen, da eine gewählt wurde?
+              // alternativeFormulations: [], 
             };
           }
         }
         return section;
       });
     updateSectionsAndHistory(newSections);
-  }
-
-  const removeClause = (sectionId: string) => {
-    const newSections = sections.map((section) => {
-        if (section.id === sectionId) {
-          return {
-            ...section,
-            content: "[Diese Klausel wurde vom Benutzer entfernt]",
-            risk: "low" as EditorSection["risk"],
-            evaluation: "N/A",
-            needsRenegotiation: false,
-            urgentAttention: false,
-            removed: true,
-          };
-        }
-        return section;
-      });
-     updateSectionsAndHistory(newSections);
+    toast.success("Alternative Formulierung übernommen.");
   }
   
   const handleSaveContract = async () => {
@@ -214,70 +355,59 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     }
     setIsSaving(true);
     try {
-        console.log("Speichern der Vertragsänderungen für contractId:", contract._id);
+        console.log("Speichern der strukturierten Vertragsänderungen für contractId:", contract._id);
         
-        // Bereinige die Sections für das Backend:
-        // Prüfe, ob die API alternativeFormulations unterstützt
-        // Falls nicht, entferne diese Eigenschaft aus allen Objekten
-        const cleanedSections = sections.map(section => {
-            const { alternativeFormulations, ...cleanSection } = section;
-            // Schema wurde aktualisiert, sollte alternativeFormulations unterstützen
-            // Falls nicht, werden sie hier entfernt
-            return {
-                ...cleanSection,
-                alternativeFormulations: alternativeFormulations || []
-            };
+        // Hole die aktuellen Sektionen aus dem State
+        const currentSectionsToSave = history[historyIndex].sections;
+
+        // Bereinige die Sections für das Backend (optional, falls alternativeFormulations nicht persistiert werden sollen)
+        const cleanedSections = currentSectionsToSave.map(section => {
+            // Entferne alternativeFormulations, falls sie nicht im Backend gespeichert werden sollen
+            // const { alternativeFormulations, ...cleanSection } = section;
+            // return cleanSection;
+            // Da das Schema es erlaubt, behalten wir sie bei:
+             return section; 
         });
         
+        // TODO: Stelle sicher, dass die Mutation 'updateContractAnalysis' im Backend
+        // so angepasst wird, dass sie 'contract.structuredContractElements' 
+        // mit den Daten aus 'updatedSections' (die dem EditorSection-Format entsprechen)
+        // aktualisiert, anstatt 'contract.editedAnalysis' zu überschreiben.
+        // Die Mutation muss das Mapping von EditorSection zurück zu StructuredElement durchführen.
         await updateAnalysisMutation({ 
             contractId: contract._id, 
-            updatedSections: cleanedSections
+            updatedSections: cleanedSections // Sendet das Array im EditorSection-Format
         });
-        toast.success("Vertragsänderungen erfolgreich gespeichert!");
+        
+        toast.success("Vertragsänderungen erfolgreich gespeichert! (Backend-Mutation muss ggf. angepasst werden)");
+        
+        // Optional: History zurücksetzen nach erfolgreichem Speichern?
+        // setHistory([{ sections: cleanedSections }]);
+        // setHistoryIndex(0);
+
     } catch (error) {
         console.error("Fehler beim Speichern der Vertragsänderungen:", error);
-        
-        // Bei Validierungsfehlern mit alternativeFormulations versuche ohne sie zu speichern
-        if (error instanceof Error && error.message.includes("alternativeFormulations")) {
-            try {
-                console.log("Versuche erneut ohne alternativeFormulations...");
-                const strippedSections = sections.map(({ alternativeFormulations, ...rest }) => rest);
-                await updateAnalysisMutation({
-                    contractId: contract._id,
-                    updatedSections: strippedSections
-                });
-                toast.success("Vertragsänderungen gespeichert (ohne Alternativvorschläge)");
-            } catch (fallbackError) {
-                console.error("Auch der zweite Versuch ist fehlgeschlagen:", fallbackError);
-                toast.error("Fehler beim Speichern der Änderungen.", { 
-                    description: fallbackError instanceof Error ? fallbackError.message : "Unbekannter Fehler" 
-                });
-            }
-        } else {
+        // Bestehende Fehlerbehandlung beibehalten...
             toast.error("Fehler beim Speichern der Änderungen.", { 
                 description: error instanceof Error ? error.message : "Unbekannter Fehler" 
             });
-        }
     } finally {
         setIsSaving(false);
     }
   };
 
-  // Undo Funktion
   const handleUndo = () => {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1);
     }
   };
 
-  // Redo Funktion
   const handleRedo = () => {
     if (historyIndex < history.length - 1) {
       setHistoryIndex(historyIndex + 1);
     }
   };
 
-  // Copy Funktion
   const handleCopySection = () => {
     if (!activeSectionId) {
         toast.info("Bitte wählen Sie zuerst eine Sektion zum Kopieren aus.");
@@ -289,7 +419,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     const newSection: EditorSection = {
       ...sectionToCopy,
       // Neue eindeutige ID generieren (z.B. mit Zeitstempel oder UUID)
-      id: `clause-${sectionToCopy.chunkNumber || '0'}-${Date.now()}`,
+      id: `copied-${sectionToCopy.elementType}-${Date.now()}`, // Angepasste ID
       title: `${sectionToCopy.title} (Kopie)`
     };
 
@@ -305,22 +435,27 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
      toast.success(`Sektion "${sectionToCopy.title}" wurde kopiert.`);
   };
 
-  // Delete Funktion
-  const handleDeleteSection = () => {
-     if (!activeSectionId) {
-        toast.info("Bitte wählen Sie zuerst eine Sektion zum Löschen aus.");
-        return;
-    }
-    const sectionToDelete = sections.find(s => s.id === activeSectionId);
-    if (!sectionToDelete) return;
-
-    const newSections = sections.filter(s => s.id !== activeSectionId);
+  const handleRemoveClause = (sectionId: string) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return;
+    
+    const newSections = sections.map(s => 
+      s.id === sectionId ? {...s, removed: true} : s
+    );
+    
+    // Aktualisiere Sektionen und History
     updateSectionsAndHistory(newSections);
-    setActiveSectionId(null); // Keine Sektion mehr aktiv nach Löschen
-    toast.success(`Sektion "${sectionToDelete.title}" wurde gelöscht.`);
+    // Mache keine Sektion aktiv oder schließe Details, falls offen
+    if (activeSectionId === sectionId) setActiveSectionId(null);
+    setDetailsVisible(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+    });
+
+    toast.success(`Klausel "${section.title}" wurde als entfernt markiert.`);
   };
 
-  // Platzhalter für "Einreichen" der benutzerdefinierten Formulierung
   const handleCustomFormulationSubmit = (sectionId: string, customContent: string) => {
     if (!customContent.trim()) {
       toast.info("Bitte geben Sie eine Formulierung ein.");
@@ -328,84 +463,102 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     }
     console.log(`Eigene Formulierung für Sektion ${sectionId} eingereicht:`, customContent);
     // Sektion aktualisieren
-    const newSections = sections.map(s => s.id === sectionId ? {...s, content: customContent, risk: 'low' as EditorSection["risk"]} : s);
+    const newSections = sections.map(s => 
+        s.id === sectionId 
+        ? {...s, 
+            content: customContent, // Direkte Übernahme des Textes
+            risk: 'low' as EditorSection["risk"], 
+            evaluation: "Benutzerdefiniert", 
+            needsRenegotiation: false, 
+            urgentAttention: false
+          } 
+        : s);
     updateSectionsAndHistory(newSections);
     toast.success("Eigene Formulierung übernommen (Speichern nicht vergessen).");
   };
 
-  // "Mit KI optimieren"-Funktion für benutzerdefinierte Formulierungen
   const handleOptimizeWithAI = async (sectionId: string, textToOptimize?: string) => {
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
 
     const isManualOptimization = typeof textToOptimize === 'string';
-    const contentToOptimize = isManualOptimization ? textToOptimize : section.content;
+    const currentContent: string = section.content || ''; 
+    const contentToUse: string = isManualOptimization ? (textToOptimize || '') : currentContent;
+    const textForAction: string = contentToUse;
 
-    if (!contentToOptimize || contentToOptimize.trim().length === 0) {
-      if (!isManualOptimization) {
-          toast.info("Kein Inhalt in der Klausel zum Optimieren vorhanden.");
-      }
+    if (!textForAction || textForAction.trim().length === 0) {
+      toast.info("Kein Inhalt zum Verarbeiten durch KI vorhanden.");
       return;
     }
     
     setOptimizingSectionId(sectionId); 
-    console.log(`KI-Optimierung angefordert für Sektion ${sectionId}. Manuell: ${isManualOptimization}. Inhalt:`, contentToOptimize);
+    console.log(`KI-Aktion angefordert für Sektion ${sectionId}. Typ: ${isManualOptimization ? 'Optimize' : 'Generate Alternatives'}. Inhalt:`, textForAction);
     
     try {
         if (isManualOptimization) {
-            // Fall 1: Bei einem manuellen Aufruf (Button "Mit KI optimieren")
-            const alternatives = await optimizeClauseAction({ clauseText: contentToOptimize });
-            console.log("Received alternatives:", alternatives);
-            
-            if (alternatives && alternatives.length > 0) {
-                // Den optimierten Text direkt in das Eingabefeld einfügen
+            // Fall 1: Optimize
+            const optimizeResult = await optimizeClauseAction({ clauseText: textForAction }); 
+            console.log("Received optimized text/result:", optimizeResult);
+
+            // Prüfung, da der Linter 'any[]' meldet
+            let optimizedText: string | null = null;
+            if (typeof optimizeResult === 'string') {
+                optimizedText = optimizeResult;
+            } else if (Array.isArray(optimizeResult) && optimizeResult.length > 0 && typeof optimizeResult[0] === 'string') {
+                console.warn("optimizeClauseAction hat ein Array zurückgegeben, erwartet wurde ein String. Verwende erstes Element.");
+                optimizedText = optimizeResult[0];
+            } else {
+                 console.error("optimizeClauseAction hat ein unerwartetes Format zurückgegeben:", optimizeResult);
+            }
+
+            if (optimizedText !== null) {
                 const textarea = document.getElementById(`custom-formulation-${sectionId}`) as HTMLTextAreaElement;
                 if (textarea) {
-                    textarea.value = alternatives[0];
-                    toast.success("Text wurde optimiert. Klicke auf 'Einreichen', um ihn zu übernehmen.");
+                    textarea.value = optimizedText; // Jetzt sicher ein String oder null
+                    toast.success("Text wurde optimiert. Klicke auf 'Übernehmen', um ihn zu speichern.");
                 } else {
                     toast.error("Fehler: Konnte das Eingabefeld nicht finden.");
                 }
             } else {
-                toast.info("KI konnte keine Alternativen für diesen Text finden.");
+                toast.info("KI konnte diesen Text nicht optimieren oder gab ein unerwartetes Ergebnis zurück.");
             }
         } else {
-            // Fall 2: Bei automatischem Aufruf (Detailkarte aufgeklappt)
-            // Verwende die neue generateAlternativesAction für 3 alternative Formulierungen
-            const alternatives = await generateAlternativesAction({ clauseText: contentToOptimize });
+            // Fall 2: Generate Alternatives
+            const alternatives = await generateAlternativesAction({ clauseText: textForAction });
             console.log("Received alternative formulations:", alternatives);
-            
-            if (alternatives && alternatives.length > 0) {
+            if (alternatives && Array.isArray(alternatives) && alternatives.length > 0) { // Zusätzliche Prüfung auf Array
                 toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
-                const newSections = sections.map(s => {
-                    if (s.id === sectionId) {
-                        // Überschreibe immer die alternativeFormulations mit den neuesten Ergebnissen
-                        return {
-                            ...s,
-                            alternativeFormulations: alternatives.map((altText, index) => ({ id: `ai-alt-${sectionId}-${index}-${Date.now()}`, content: altText }))
-                        };
-                    }
-                    return s;
-                });
-                updateSectionsAndHistory(newSections);
-            } else {
+            const newSections = sections.map(s => {
+                if (s.id === sectionId) {
+                    return {
+                        ...s,
+                            alternativeFormulations: alternatives.map((altText, index) => ({ 
+                                id: `ai-alt-${sectionId}-${index}-${Date.now()}`,
+                                content: altText 
+                            }))
+                    };
+                }
+                return s;
+            });
+            updateSectionsAndHistory(newSections);
+        } else {
                 toast.info("KI konnte keine Alternativen für diesen Text generieren.");
-            }
+                 const newSections = sections.map(s => s.id === sectionId ? { ...s, alternativeFormulations: [] } : s);
+                 updateSectionsAndHistory(newSections);
+        }
         }
     } catch (error) {
-        console.error("Fehler bei der KI-Optimierung:", error);
-        toast.error("Fehler bei der KI-Optimierung.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+        console.error("Fehler bei der KI-Aktion:", error);
+        toast.error("Fehler bei der KI-Aktion.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
     } finally {
         setOptimizingSectionId(null); 
     }
   };
 
-  // Funktion, um sicherzustellen, dass Refs korrekt gesetzt werden
   const setSectionRef = (sectionId: string) => (el: HTMLDivElement | null) => {
     sectionRefs.current[sectionId] = el;
   };
 
-  // Funktion zum Verfolgen der eingeklappten Sektionen
   const handleSectionCollapsedChange = (sectionId: string, isCollapsed: boolean) => {
     console.log(`Section ${sectionId} collapsed state changed to: ${isCollapsed}`);
     setCollapsedSections(prev => {
@@ -419,16 +572,13 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     });
   };
 
-  // Funktion zum Umschalten der Sichtbarkeit der Details-Karte
   const toggleDetailsVisibility = (sectionId: string, e?: React.MouseEvent) => {
-    // Immer das Event stoppen, um zu verhindern, dass es an die Hauptkachel weitergeleitet wird
     if (e) {
       e.stopPropagation();
     }
     
     console.log(`Toggling details for section ${sectionId}. Currently visible: ${detailsVisible.has(sectionId)}`);
     
-    // Wenn die Sektion noch nicht aktiv ist, aktivieren
     if (activeSectionId !== sectionId) {
       setActiveSectionId(sectionId);
     }
@@ -439,154 +589,138 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
         newSet.delete(sectionId);
       } else {
         newSet.add(sectionId);
+         // Optional: Generiere Alternativen nur beim ersten Öffnen der Details
+        const section = sections.find(s => s.id === sectionId);
+        if (section && 
+            (section.risk === "medium" || section.risk === "high") &&
+            (!section.alternativeFormulations || section.alternativeFormulations.length === 0) &&
+             optimizingSectionId !== sectionId) {
+            console.log(`Triggering AI alternatives on detail open for section ${sectionId}`);
+            handleOptimizeWithAI(sectionId); 
+        }
       }
       return newSet;
     });
   };
 
-  // Funktion, die prüft, ob die Details für eine Sektion sichtbar sein sollen
   const isDetailsVisible = useCallback((sectionId: string) => {
-    return activeSectionId === sectionId && !collapsedSections.has(sectionId) && detailsVisible.has(sectionId);
-  }, [activeSectionId, collapsedSections, detailsVisible]);
+    return activeSectionId === sectionId && detailsVisible.has(sectionId);
+  }, [activeSectionId, detailsVisible]);
 
-  // Funktion zum Entfernen einer Klausel
-  const handleRemoveClause = (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
-    if (!section) return;
-    
-    // Setze die removed Eigenschaft auf true statt tatsächlich zu löschen
-    const newSections = sections.map(s => 
-      s.id === sectionId ? {...s, removed: true} : s
-    );
-    
-    // Aktualisiere Sektionen und History
-    updateSectionsAndHistory(newSections);
-    setActiveSectionId(null);
-    toast.success(`Klausel "${section.title}" wurde entfernt.`);
+  // Hilfsfunktion zum Herunterladen von Blobs
+  const downloadBlob = (blob: Blob, fileName: string) => {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href); // Speicher freigeben
   };
 
-  // Effekt zum automatischen Laden von KI-Alternativen für aktive, riskante Sektionen ohne Alternativen
-  useEffect(() => {
-    if (activeSectionId && sections.length > 0) {
-      const activeSection = sections.find(s => s.id === activeSectionId);
-      
-      // Prüfen, ob die Sektion existiert, riskant ist, noch keine Alternativen hat UND nicht gerade optimiert wird
-      if (
-        activeSection && 
-        (activeSection.risk === "medium" || activeSection.risk === "high") && 
-        (!activeSection.alternativeFormulations || activeSection.alternativeFormulations.length === 0) &&
-        optimizingSectionId !== activeSectionId // Verhindert erneutes Laden, wenn schon aktiv
-      ) {
-        console.log(`Automatically fetching AI alternatives for active risky section: ${activeSectionId}`);
-        // Rufe handleOptimizeWithAI für den Hauptinhalt der Klausel auf (ohne textToOptimize)
-        handleOptimizeWithAI(activeSectionId);
-      }
-    }
-    // Abhängigkeiten: Wird ausgeführt, wenn sich die aktive Sektion oder der Optimierungsstatus ändert
-  }, [activeSectionId, sections, optimizingSectionId]); 
-
-  // 1. Speichern-Unter-Funktionalität
-  const handleDownloadContract = () => {
+  const handleExportDocx = async () => {
     if (!contract) {
-      toast.error("Fehler: Vertrag konnte nicht geladen werden.");
+        toast.error("Fehler: Vertragsdaten nicht verfügbar.");
       return;
     }
-
-    // Den Inhalt des Vertrags aus den Sektionen zusammenstellen
-    const contractContent = sections
-      .filter(section => !section.removed)
-      .map(section => section.content)
-      .join('\n\n');
-
-    // Dateinamen aus dem ursprünglichen Vertrag ableiten
-    const originalFileName = contract.fileName;
-    
-    // Dateiendung extrahieren
-    const fileExtension = originalFileName.includes('.') 
-      ? originalFileName.split('.').pop()?.toLowerCase() 
-      : 'txt';
+    setIsExportingDocx(true);
+    toast.info("DOCX-Export wird vorbereitet...", { description: "Bitte haben Sie einen Moment Geduld." });
 
     try {
-      // MIME-Typ und Encoding je nach Dateityp festlegen
-      let blob;
-      
-      // Für Textdateien: UTF-8 Encoding verwenden
-      if (!fileExtension || fileExtension === 'txt') {
-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const textEncoder = new TextEncoder();
-        const contentArray = textEncoder.encode(contractContent);
-        
-        // BOM und Inhalt zusammenführen
-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
-        contentWithBOM.set(BOM, 0);
-        contentWithBOM.set(contentArray, BOM.length);
-        
-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
-      } 
-      // Für Word-Dokumente: Da wir keine echten Word-Dokumente erzeugen können, 
-      // exportieren wir als .txt mit entsprechendem Hinweis
-      else if (fileExtension === 'docx' || fileExtension === 'doc') {
-        toast.info("Word-Format wird als UTF-8 Textdatei exportiert", {
-          description: "Die eigentliche Word-Formatierung kann nicht beibehalten werden."
-        });
-        
-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const textEncoder = new TextEncoder();
-        const contentArray = textEncoder.encode(contractContent);
-        
-        // BOM und Inhalt zusammenführen
-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
-        contentWithBOM.set(BOM, 0);
-        contentWithBOM.set(contentArray, BOM.length);
-        
-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
-      } 
-      // Für andere Formate: als Textdatei behandeln
-      else {
-        toast.info(`Format .${fileExtension} wird als UTF-8 Textdatei exportiert`);
-        
-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const textEncoder = new TextEncoder();
-        const contentArray = textEncoder.encode(contractContent);
-        
-        // BOM und Inhalt zusammenführen
-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
-        contentWithBOM.set(BOM, 0);
-        contentWithBOM.set(contentArray, BOM.length);
-        
-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
-      }
-      
-      // URL für den Download erzeugen
-      const url = URL.createObjectURL(blob);
-      
-      // Download-Link erstellen und klicken
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = originalFileName;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Aufräumen
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        // 1. Markdown-Inhalt holen (nur nicht entfernte Sektionen)
+        const currentSections = history[historyIndex].sections;
+        const contractMarkdownContent = currentSections
+        .filter(section => !section.removed)
+        .map(section => section.content)
+        .join('\n\n');
 
-      toast.success(`Vertrag "${originalFileName}" wurde erfolgreich exportiert.`);
+        const originalFileName = contract.fileName || "Unbenannter Vertrag";
+
+        // 2. API-Aufruf
+        const response = await fetch('/api/export/docx', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                markdownContent: contractMarkdownContent,
+                fileName: originalFileName 
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})); // Fehlerdetails versuchen zu lesen
+            throw new Error(`Serverfehler: ${response.status} ${response.statusText}. ${errorData?.details || ''}`);
+        }
+
+        // 3. Blob erhalten und herunterladen
+        const blob = await response.blob();
+        const exportFileName = stripFileExtension(originalFileName) + ".docx";
+        downloadBlob(blob, exportFileName);
+
+        toast.success("DOCX erfolgreich exportiert.", { description: exportFileName });
+
     } catch (error) {
-      console.error("Fehler beim Export des Vertrags:", error);
-      toast.error("Fehler beim Export des Vertrags", {
-        description: error instanceof Error ? error.message : "Unbekannter Fehler"
-      });
+        console.error("DOCX Export fehlgeschlagen:", error);
+        toast.error("DOCX-Export fehlgeschlagen.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+    } finally {
+        setIsExportingDocx(false);
     }
   };
 
-  // 2. Dateinamen-Bearbeitung Funktionen
+  const handleExportPdf = async () => {
+    if (!contract) {
+        toast.error("Fehler: Vertragsdaten nicht verfügbar.");
+        return;
+    }
+    setIsExportingPdf(true);
+    toast.info("PDF-Export wird vorbereitet...", { description: "Bitte haben Sie einen Moment Geduld." });
+
+    try {
+        // 1. Markdown-Inhalt holen (nur nicht entfernte Sektionen)
+        const currentSections = history[historyIndex].sections;
+        const contractMarkdownContent = currentSections
+            .filter(section => !section.removed)
+            .map(section => section.content)
+            .join('\n\n');
+
+        const originalFileName = contract.fileName || "Unbenannter Vertrag";
+
+        // 2. API-Aufruf
+        const response = await fetch('/api/export/pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                markdownContent: contractMarkdownContent,
+                fileName: originalFileName 
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})); // Fehlerdetails versuchen zu lesen
+            throw new Error(`Serverfehler: ${response.status} ${response.statusText}. ${errorData?.details || ''}`);
+        }
+
+        // 3. Blob erhalten und herunterladen
+        const blob = await response.blob();
+        const exportFileName = stripFileExtension(originalFileName) + ".pdf";
+        downloadBlob(blob, exportFileName);
+
+        toast.success("PDF erfolgreich exportiert.", { description: exportFileName });
+
+    } catch (error) {
+        console.error("PDF Export fehlgeschlagen:", error);
+        toast.error("PDF-Export fehlgeschlagen.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+    } finally {
+        setIsExportingPdf(false);
+    }
+  };
+
   const handleStartEditFileName = () => {
     if (contract) {
-      setEditedFileName(contract.fileName);
+      setEditedFileName(contract.fileName || "");
       setIsEditingFileName(true);
       // Focus auf das Input-Feld setzen (nach dem Rendern)
       setTimeout(() => {
@@ -633,16 +767,20 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     );
   }
 
-  if (!contract || history[historyIndex].sections.length === 0) {
+  if (!contract || (history.length === 1 && history[0].sections.length === 0 && !isLoading) ) {
+     // Zeige "Keine Daten" nur an, wenn nicht mehr geladen wird und wirklich keine Sektionen da sind
     return (
-        <div className="flex flex-col items-center justify-center h-[400px] text-center">
+        <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
             <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Keine Analysedaten</h3>
-            <p className="text-muted-foreground">
-                Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse ist noch nicht abgeschlossen/fehlgeschlagen.
+            <h3 className="text-xl font-semibold mb-2">Keine analysierten Daten</h3>
+            <p className="text-muted-foreground max-w-md">
+                Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse läuft noch bzw. ist fehlgeschlagen. Bitte überprüfen Sie den Status oder laden Sie den Vertrag neu hoch.
             </p>
             {contract && (
-                <p className="text-sm text-muted-foreground mt-1">Status: {contract.status}</p>
+                <div className="text-sm text-muted-foreground mt-2">Status: <Badge variant={contract.status === 'failed' ? 'destructive' : 'secondary'}>{contract.status}</Badge></div>
+            )}
+            {!contract && !isLoading && (
+                 <p className="text-sm text-destructive mt-2">Vertrag mit ID {contractId} konnte nicht geladen werden.</p>
             )}
         </div>
     );
@@ -651,22 +789,19 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   return (
     <div className="flex flex-col h-full">
         <div className="flex items-center justify-between py-2 px-4 border-b">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-2 flex-shrink min-w-0">
+            <FileTextIcon className="h-5 w-5 text-primary flex-shrink-0" />
             {isEditingFileName ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-grow min-w-0">
                 <Input
                   ref={fileNameInputRef}
                   value={editedFileName}
                   onChange={(e) => setEditedFileName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSaveFileName();
-                    } else if (e.key === 'Escape') {
-                      handleCancelEditFileName();
-                    }
+                    if (e.key === 'Enter') handleSaveFileName();
+                    else if (e.key === 'Escape') handleCancelEditFileName();
                   }}
-                  className="h-8 max-w-md"
+                  className="h-8 w-full max-w-md"
                 />
                 <Button variant="ghost" size="icon" onClick={handleSaveFileName} title="Speichern">
                   <CheckCircle className="h-4 w-4" />
@@ -677,56 +812,62 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
               </div>
             ) : (
               <h3 
-                className="font-medium cursor-pointer hover:underline" 
+                className="font-medium cursor-pointer hover:underline truncate"
                 onDoubleClick={handleStartEditFileName}
-                title="Doppelklick zum Bearbeiten"
+                title={contract?.fileName || 'Vertrag laden...'}
               >
-                Vertragsdokument: {contract?.fileName || 'Vertrag laden...'}
+                {contract?.fileName || 'Vertrag laden...'}
               </h3>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <Button variant="ghost" size="icon" title="Rückgängig" onClick={handleUndo} disabled={historyIndex === 0}>
               <Undo className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" title="Wiederholen" onClick={handleRedo} disabled={historyIndex === history.length - 1}>
               <Redo className="h-4 w-4" />
             </Button>
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 mx-1" />
             <Button variant="ghost" size="icon" title="Kopieren" onClick={handleCopySection} disabled={!activeSectionId}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="Löschen" onClick={handleDeleteSection} disabled={!activeSectionId}>
+            <Button variant="ghost" size="icon" title="Als entfernt markieren" onClick={() => activeSectionId && handleRemoveClause(activeSectionId)} disabled={!activeSectionId}>
               <Trash className="h-4 w-4" />
             </Button>
-            <Separator orientation="vertical" className="h-6" />
-            <Button variant="outline" size="sm" className="gap-1" onClick={handleSaveContract} disabled={isSaving}>
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
+            <Separator orientation="vertical" className="h-6 mx-1" />
+            <Button variant="outline" size="sm" className="gap-1" onClick={handleSaveContract} disabled={isSaving || (history.length === 1 && historyIndex === 0)}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               <span>{isSaving ? "Speichern..." : "Speichern"}</span>
             </Button>
-            <Button variant="outline" size="sm" className="gap-1" onClick={handleDownloadContract}>
-              <Download className="h-4 w-4" />
-              <span>Export</span>
-            </Button>
+            {/* Separate Export-Buttons */}
+            {isClient && (
+              <>
+                <Button variant="outline" size="sm" className="gap-1 ml-2" onClick={handleExportPdf} disabled={isExportingPdf || isExportingDocx}> 
+                    {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileIcon className="h-4 w-4" />}
+                    <span>{isExportingPdf ? "PDF..." : "Als PDF"}</span>
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1 ml-1" onClick={handleExportDocx} disabled={isExportingDocx || isExportingPdf}> 
+                    {isExportingDocx ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileTextIcon className="h-4 w-4" />} 
+                    <span>{isExportingDocx ? "DOCX..." : "Als DOCX"}</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-      <div className="flex flex-1 gap-4 p-4">
-        <div className="flex-1 flex flex-col h-full min-h-0">
-          <ScrollArea className="flex-1 h-full">
-            <div className="space-y-4">
-            {sections.map((section) => (
+      <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 order-2 md:order-1 min-w-0">
+            <h4 className="text-sm font-medium mb-3 px-1">Vertragsinhalt</h4>
+          <ScrollArea className="flex-1 border rounded-md">
+             <div ref={editorScrollAreaRef} className="h-full">
+                <div className="p-4 space-y-4">
+                {(sections.filter(s => !s.removed) || []).map((section) => (
               <div key={section.id} ref={setSectionRef(section.id)} className="section-container">
                 <ContractSection
                   section={section}
                   isActive={activeSectionId === section.id}
                   onClick={() => setActiveSectionId(section.id)}
                   onUpdate={(updatedContent) => {
-                    // Update Funktion für einzelne Sektion
                     const newSections = sections.map((s) => 
                       s.id === section.id ? { ...s, content: updatedContent } : s
                     );
@@ -741,32 +882,33 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                   detailsVisible={detailsVisible.has(section.id)}
                 />
 
-                {/* Details Karte (Begründung, Empfehlung, Alternativen) */}
-                {detailsVisible.has(section.id) && (
-                  <Card className="mt-4 border-gray-200 dark:border-gray-700 shadow-sm">
+                    {isDetailsVisible(section.id) && (
+                    <Card className="mt-2 border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in-50 slide-in-from-top-2 duration-300">
                     <CardContent className="p-4">
-                      <div className="flex items-center mb-3">
-                        <div className="flex items-center">
-                          {section.risk === "medium" && (
-                            <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 mr-2">
-                              Verhandelbar
-                            </Badge>
-                          )}
-                          {section.risk === "high" && (
-                            <Badge variant="destructive" className="mr-2">
-                              Dringender Handlungsbedarf
-                            </Badge>
-                          )}
-                          <h3 className="text-base font-semibold">Details und Alternative Formulierungen</h3>
-                        </div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                        {section.risk === "medium" && (
+                            <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400">
+                            Verhandelbar
+                          </Badge>
+                        )}
+                        {section.risk === "high" && (
+                            <Badge variant="destructive">
+                            Dringender Handlungsbedarf
+                          </Badge>
+                        )}
+                              <h3 className="text-base font-semibold">Details & Alternativen</h3>
+                      </div>
+                            <Button variant="ghost" size="icon" onClick={(e) => toggleDetailsVisibility(section.id, e)} className="text-muted-foreground hover:text-foreground">
+                                <X className="h-4 w-4" />
+                            </Button>
                       </div>
 
-                      {/* Begründung und Empfehlung */}
                       {(section.reason || section.recommendation) && (
                         <div className="space-y-3 mb-4 border-b pb-4 dark:border-gray-700">
                           {section.reason && (
                             <div className="p-3 border rounded-md bg-muted/50">
-                              <h4 className="text-sm font-medium mb-1">Begründung ({section.risk === "high" ? "Hohes Risiko" : section.risk === "medium" ? "Mittleres Risiko" : section.risk === "low" ? "Niedriges Risiko" : "Fehler"}):</h4>
+                                <h4 className="text-sm font-medium mb-1">Begründung ({section.evaluation}):</h4>
                               <p className="text-sm whitespace-pre-wrap">{section.reason}</p>
                             </div>
                           )}
@@ -779,159 +921,98 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                         </div>
                       )}
 
-                      {/* Alternative Formulierungen */}
-                      {(section.risk === "high" || section.risk === "medium") && (
+                        {(section.risk === "high" || section.risk === "medium") ? (
                         <>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Diese Klausel wurde in der Risikoanalyse als risikobehaftet eingestuft. Wählen Sie eine alternative Formulierung oder entfernen Sie die Klausel.
-                          </p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                            Diese Klausel wurde als risikobehaftet eingestuft. Wählen Sie eine alternative Formulierung, bearbeiten Sie sie manuell oder markieren Sie sie als entfernt.
+                        </p>
 
-                          {/* KI-generierte Alternativen */}
-                          {section.alternativeFormulations && section.alternativeFormulations.length > 0 && (
-                            <div className="space-y-3 mb-6">
-                              {section.alternativeFormulations.map((alt) => (
-                                <div
-                                  key={alt.id}
-                                  className="p-3 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 bg-white dark:bg-gray-900/30 transition-colors group"
-                                >
-                                  <p className="text-sm mb-2 whitespace-pre-wrap">{alt.content}</p>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-blue-500 text-blue-600 hover:bg-blue-100/60 hover:text-blue-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
+                        {optimizingSectionId === section.id && (!section.alternativeFormulations || section.alternativeFormulations.length === 0) && (
+                            <div className="flex items-center justify-center p-4 border rounded-md bg-muted/30 text-sm text-muted-foreground mb-6">
+                                <Loader2 className="h-4 w-4 animate-spin mr-2"/>
+                                Generiere Alternativen...
+                            </div>
+                        )}
+                        {optimizingSectionId !== section.id && section.alternativeFormulations && section.alternativeFormulations.length > 0 && (
+                        <div className="space-y-3 mb-6">
+                          {section.alternativeFormulations.map((alt) => (
+                            <div
+                              key={alt.id}
+                              className="p-3 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 bg-white dark:bg-gray-900/30 transition-colors group"
+                            >
+                                 <div className="prose prose-sm dark:prose-invert max-w-none mb-2">
+                                     <ReactMarkdown>{alt.content}</ReactMarkdown>
+                                 </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-blue-500 text-blue-600 hover:bg-blue-100/60 hover:text-blue-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       applyAlternativeFormulation(section.id, alt.id);
                                     }}
-                                  >
-                                    Diese Formulierung verwenden
-                                  </Button>
-                                </div>
-                              ))}
+                              >
+                                Diese Formulierung verwenden
+                              </Button>
                             </div>
-                          )}
-                          {(!section.alternativeFormulations || section.alternativeFormulations.length === 0) && (
-                            <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm text-muted-foreground mb-6">
-                               Für diese Klausel wurden von der KI noch keine Alternativen vorgeschlagen. Sie können unten eine eigene Formulierung eingeben oder die Klausel mit KI optimieren lassen.
-                            </div>
-                          )}
-
-                          {/* Bereich für benutzerdefinierte Formulierung */}
-                          <div className="space-y-2 pt-4 border-t dark:border-gray-700">
-                            <h4 className="text-sm font-medium">Benutzerdefinierte Formulierung:</h4>
-                            <div className="relative">
-                              <Textarea 
-                                placeholder="Geben Sie Ihre eigene Formulierung für diese Klausel ein..."
-                                className="min-h-[100px] bg-white dark:bg-gray-900/30"
-                                id={`custom-formulation-${section.id}`} 
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <div className="flex flex-col sm:flex-row gap-2 mt-3 justify-between items-stretch">
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="gap-1 w-full sm:w-auto sm:mr-auto"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveClause(section.id);
-                                  }}
-                                >
-                                  <Trash className="h-4 w-4" />
-                                  <span>Klausel entfernen</span>
-                                </Button>
-                                
-                                <div className="flex gap-2 w-full sm:w-auto">
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    className="gap-1 flex-grow sm:flex-grow-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
-                                      handleCustomFormulationSubmit(section.id, textarea?.value || '');
-                                    }}
-                                  >
-                                    <Send className="h-4 w-4" />
-                                    <span>Einreichen</span>
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    className="gap-1 bg-destructive hover:bg-destructive/90 text-white flex-grow sm:flex-grow-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
-                                      const customText = textarea?.value;
-                                      // Rufe Optimierung NUR mit dem Text aus der Textarea auf, WENN er nicht leer ist.
-                                      if (customText && customText.trim() !== "") {
-                                        handleOptimizeWithAI(section.id, customText);
-                                      } else {
-                                        toast.info("Bitte geben Sie zuerst eine Formulierung in das Textfeld ein, um sie mit KI zu optimieren.");
-                                      }
-                                    }}
-                                    disabled={optimizingSectionId === section.id}
-                                  >
-                                    {optimizingSectionId === section.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2"><path d="m3 21 3.05-9.16A2 2 0 0 1 7.98 10.5H10.5a2 2 0 0 1 1.83 1.26L15 21M21 3l-9.16 3.05a2 2 0 0 1-1.34.24L9 6.05M14.5 6.5l3 3M6.5 14.5l3 3"/></svg>
-                                    )}
-                                    <span>{optimizingSectionId === section.id ? "Optimiere..." : "Mit KI optimieren"}</span>
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </>
+                          ))}
+                        </div>
                       )}
+                            {optimizingSectionId !== section.id && (!section.alternativeFormulations || section.alternativeFormulations.length === 0) && (
+                        <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm text-muted-foreground mb-6">
+                            Für diese Klausel wurden von der KI keine Alternativen vorgeschlagen oder sie konnten nicht generiert werden. Sie können unten eine eigene Formulierung eingeben.
+                        </div>
+                      )}
+                            </>
+                        ) : null}
                     </CardContent>
                   </Card>
                 )}
               </div>
             ))}
-            {sections.length > 0 && (
-                 <Button onClick={addNewSection} variant="outline" className="w-full mt-4 gap-1" title="Neue Sektion hinzufügen (TODO)">
-              <Plus className="h-4 w-4" />
-                    <span>Neue Sektion hinzufügen (Funktion überdenken)</span>
-            </Button>
-            )}
+                </div>
           </div>
         </ScrollArea>
       </div>
 
-        <div className="w-96 flex-shrink-0">
+        <div className="w-full md:w-[25rem] flex-shrink-0 order-1 md:order-2">
           <div className="flex flex-col h-full">
-              <div className="p-4 border-y rounded-t-md bg-gray-50 dark:bg-gray-800/30">
+              <div className="p-4 border rounded-t-md bg-gray-50 dark:bg-gray-800/30">
                 <h4 className="font-medium mb-3 text-sm">Risikozusammenfassung</h4>
                 <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "high").length > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "high").length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "high").length}</p>
-                        <p className="text-muted-foreground">Hoch</p>
+                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => !s.removed && s.risk === "high").length > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-muted'}`}>
+                        <p className={`font-bold ${sections.filter((s) => !s.removed && s.risk === "high").length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{sections.filter((s) => !s.removed && s.risk === "high").length}</p>
+                        <p className="text-xs text-muted-foreground">Hoch</p>
                     </div>
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "medium").length > 0 ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "medium").length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "medium").length}</p>
-                        <p className="text-muted-foreground">Mittel</p>
+                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => !s.removed && s.risk === "medium").length > 0 ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-muted'}`}>
+                        <p className={`font-bold ${sections.filter((s) => !s.removed && s.risk === "medium").length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{sections.filter((s) => !s.removed && s.risk === "medium").length}</p>
+                        <p className="text-xs text-muted-foreground">Mittel</p>
                     </div>
-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-muted'}`}>
-                        <p className={`font-bold ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length}</p>
-                        <p className="text-muted-foreground">Niedrig</p>
+                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => !s.removed && s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-muted'}`}>
+                        <p className={`font-bold ${sections.filter((s) => !s.removed && s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{sections.filter((s) => !s.removed && s.risk === "low" && s.evaluation !== "Fehler").length}</p>
+                        <p className="text-xs text-muted-foreground">Niedrig</p>
                     </div>
-                    {sections.filter((s) => s.risk === "error").length > 0 && (
+                    {sections.filter((s) => !s.removed && s.risk === "error").length > 0 && (
                         <div className="p-2 mt-2 rounded-md bg-destructive/10 text-center col-span-3 text-xs">
-                            <p className="font-bold text-destructive">{sections.filter((s) => s.risk === "error").length} Analysefehler</p>
+                            <p className="font-bold text-destructive">{sections.filter((s) => !s.removed && s.risk === "error").length} Analysefehler</p>
                         </div>
                     )}
                 </div>
             </div>
             
-              <ScrollArea className="flex-grow border rounded-b-md h-full">
+             <ScrollArea className="flex-grow border rounded-b-md border-t-0">
                   <div className="p-4 space-y-3">
-                      <h4 className="text-sm font-medium mb-4">Kritische Klauseln:</h4>
+                      <h4 className="text-sm font-medium mb-2">Handlungsbedarf:</h4>
                     {sections
-                        .filter((section) => section.needsRenegotiation || section.risk === "error")
+                        .filter((section) => !section.removed && (section.needsRenegotiation || section.risk === "error"))
+                        .sort((a, b) => {
+                            const riskOrder = { error: 0, high: 1, medium: 2, low: 3 };
+                            return (riskOrder[a.risk] ?? 99) - (riskOrder[b.risk] ?? 99);
+                         })
                         .map((section) => (
                           <div
                             key={`risk-${section.id}`}
-                              className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-shadow mb-3
+                              className={`py-2 px-3 border rounded-lg cursor-pointer hover:shadow-md transition-shadow 
                             ${ 
                             section.risk === "error" ? "bg-destructive/10 border-destructive/30 hover:border-destructive/50"
                             : section.urgentAttention
@@ -940,73 +1021,41 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                             }`}
                             onClick={() => {
                               setActiveSectionId(section.id);
-                            }}
-                            onDoubleClick={() => {
                               const targetElement = sectionRefs.current[section.id];
-                              const scrollAreaElement = editorScrollAreaRef.current;
-
+                              const scrollAreaElement = editorScrollAreaRef.current?.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
                               if (targetElement && scrollAreaElement) {
-                                setActiveSectionId(section.id);
-
-                                setTimeout(() => {
-                                  try {
-                                    const viewport = scrollAreaElement.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
-
-                                    if (viewport) {
-                                        const elementTopRelativeToScrollParent = targetElement.offsetTop - viewport.offsetTop;
+                                   const elementTopRelativeToScrollParent = targetElement.offsetTop - scrollAreaElement.offsetTop;
                                         const desiredScrollTop = elementTopRelativeToScrollParent - 16;
-
-                                      viewport.scrollTo({
-                                          top: Math.max(0, desiredScrollTop),
-                                        behavior: 'smooth'
-                                      });
-                                      
+                                    scrollAreaElement.scrollTo({ top: Math.max(0, desiredScrollTop), behavior: 'smooth' });
                                       targetElement.classList.add('highlight-section');
-                                      setTimeout(() => {
-                                        targetElement.classList.remove('highlight-section');
-                                      }, 1500); 
-                                    } else {
-                                      targetElement.scrollIntoView({
-                                        behavior: 'smooth',
-                                        block: 'start' 
-                                      });
-                                      targetElement.classList.add('highlight-section');
-                                      setTimeout(() => {
-                                        targetElement.classList.remove('highlight-section');
-                                      }, 1500); 
-                                    }
-                                  } catch (error) {
-                                      console.error("Error during scrolling calculation or execution:", error);
-                                  }
-                                }, 50); 
-                              }
+                                    setTimeout(() => targetElement.classList.remove('highlight-section'), 1500); 
+                               }
                             }}
                           >
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
                                 {getRiskIcon(section.risk)}
-                                <span className="font-medium text-sm break-words" title={section.title}>{section.title}</span>
+                                <span className="font-medium text-sm break-words truncate" title={section.title}>{section.title}</span>
                               </div>
-                              <div className="flex-shrink-0 ml-2">
+                              <div className="flex-shrink-0 ml-1">
                                 {section.risk !== "error" && (
                                     section.urgentAttention ? (
-                                          <Badge variant="destructive" className="text-xs px-2 py-0.5 whitespace-nowrap">Dringend</Badge>
+                                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 whitespace-nowrap">Dringend</Badge>
                                     ) : section.risk === "medium" ? (
-                                          <Badge variant="outline" className="border-amber-300 bg-amber-200/50 text-amber-700 text-xs px-2 py-0.5 whitespace-nowrap">Verhandelbar</Badge>
+                                          <Badge variant="outline" className="text-xs px-1.5 py-0.5 whitespace-nowrap border-amber-300 bg-amber-200/50 text-amber-700">Verhandelbar</Badge>
                                     ) : null
                                 )}
                                </div>
                             </div>
-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-3" title={section.content}>{section.content}</p>
                             {section.risk === "error" && section.reason && (
-                                   <p className="text-xs text-destructive/80 mt-2">Grund: {section.reason}</p>
+                                   <p className="text-xs text-destructive/80 mt-1">Grund: {section.reason}</p>
                             )}
                           </div>
                         ))}
-                    {sections.filter((section) => section.needsRenegotiation || section.risk === "error").length === 0 && (
+                    {sections.filter((section) => !section.removed && (section.needsRenegotiation || section.risk === "error")).length === 0 && (
                         <div className="p-4 text-center text-muted-foreground">
                             <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
-                            <p className="text-sm">Keine kritischen Klauseln gefunden.</p>
+                            <p className="text-sm">Keine Klauseln mit dringendem Handlungsbedarf.</p>
                         </div>
                     )}
                 </div>

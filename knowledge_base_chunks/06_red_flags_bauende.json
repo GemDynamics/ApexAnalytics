@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_006",
+  "textContent": "Ein fehlendes fixes Bauende im Vertrag ist nicht akzeptabel. Der Vertrag muss ein klar definiertes Bauende enthalten, entweder direkt im Vertrag oder in einem Besprechungsprotokoll. Die Abwesenheit eines fixen Bauentermins ist kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Bauende", "Fertigstellungstermin", "Vertragstermin", "Bauzeit", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

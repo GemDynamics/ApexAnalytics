@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_004",
+  "textContent": "Back-to-Back Vertragsübernahme ist nicht akzeptabel. Eine vollständige Einbeziehung der Pflichten und Haftung aus dem Bauherrnvertrag kann nicht akzeptiert werden. Falls Vertragsbedingungen überbunden werden, müssen diese offengelegt und verhandelbar sein. Klauseln, die eine vollständige Übernahme aller Vertragsbedingungen des Hauptvertrags fordern, sind kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Back-to-Back", "Vertragsübernahme", "Bauherrnvertrag", "Subunternehmer", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

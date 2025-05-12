@@ -23,12 +23,34 @@ import { ChartAnimationWrapper } from "@/components/chart-animation-wrapper"
 import type { EditorSection } from "./contract-editor-with-contract"
 import { useMemo } from "react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
+import { useContract } from "@/hooks/useConvex"
+import { ApiLoading } from "@/components/api-loading"
+import { AlertTriangle } from "lucide-react"
 
 interface RiskAnalysisChartsProps {
-  contract: Doc<"contracts"> | undefined;
+  contractId: Id<"contracts">;
 }
 
-export function RiskAnalysisCharts({ contract }: RiskAnalysisChartsProps) {
+export function RiskAnalysisCharts({ contractId }: RiskAnalysisChartsProps) {
+  const { contract, isLoading } = useContract(contractId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[300px]">
+        <ApiLoading title="Risikoanalyse wird geladen" description="Diagramme werden vorbereitet..." />
+      </div>
+    );
+  }
+
+  if (!contract) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[300px] text-center text-muted-foreground">
+        <AlertTriangle className="h-8 w-8 text-amber-500 mb-2"/>
+        <p>Vertragsdaten konnten nicht geladen werden.</p>
+      </div>
+    );
+  }
+
   // Transformieren der Vertragsdaten in EditorSection-Format für die Charts
   const analysisData: EditorSection[] = useMemo(() => {
     if (!contract?.analysisProtocol) {
@@ -64,6 +86,7 @@ export function RiskAnalysisCharts({ contract }: RiskAnalysisChartsProps) {
         needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
         urgentAttention: riskLevel === "high",
         chunkNumber: clause.chunkNumber,
+        elementType: 'clauseH3',
       };
     });
   }, [contract]);

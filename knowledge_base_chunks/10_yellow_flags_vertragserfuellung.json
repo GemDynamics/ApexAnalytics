@@ -1,0 +1,10 @@
+{
+  "id": "rule_yellow_flag_003",
+  "textContent": "Vertragserfüllungsbürgschaften über 10% der Auftragssumme sind verhandelbar, aber kritisch zu prüfen. Eine Reduzierung auf maximal 10% sollte angestrebt werden. Erfüllungsgarantien von 20% oder mehr sind zu hoch angesetzt und sollten reduziert werden.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Verhandelbare Klausel",
+    "keywords": ["Vertragserfüllungsbürgschaft", "Erfüllungsgarantie", "Bürgschaft", "Sicherheiten", "verhandelbare Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

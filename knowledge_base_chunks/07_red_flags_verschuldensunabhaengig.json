@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_007",
+  "textContent": "Verschuldensunabhängige Pönale oder Schadenersatz-Klauseln sind nicht akzeptabel. Pönale oder Schadenersatz müssen immer ein Verschulden durch den Auftragnehmer voraussetzen. Klauseln, die Pönale oder Schadenersatz ohne Verschuldenserfordernis festlegen, sind kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Verschuldensunabhängig", "Pönale", "Schadenersatz", "Haftung", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

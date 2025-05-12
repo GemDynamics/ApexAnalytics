@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_001",
+  "textContent": "Pay-When-Paid Klauseln sind nicht akzeptabel. Die Zahlung darf nicht von der Zahlung des Bauherrn abhängig gemacht werden. Solche Klauseln sind in Bauverträgen als kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Pay-When-Paid", "Zahlungsbedingungen", "Bauvertrag", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

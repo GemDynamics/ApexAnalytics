@@ -17,7 +17,13 @@ import type * as ai_knowledge_base from "../ai_knowledge_base.js";
 import type * as contractActions from "../contractActions.js";
 import type * as contractMutations from "../contractMutations.js";
 import type * as contractQueries from "../contractQueries.js";
+import type * as contracts from "../contracts.js";
 import type * as contractsQueries from "../contractsQueries.js";
+import type * as gemini from "../gemini.js";
+import type * as kbProcessing from "../kbProcessing.js";
+import type * as knowledge from "../knowledge.js";
+import type * as knowledgeQueries from "../knowledgeQueries.js";
+import type * as utils_llmUtils from "../utils/llmUtils.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -32,7 +38,13 @@ declare const fullApi: ApiFromModules<{
   contractActions: typeof contractActions;
   contractMutations: typeof contractMutations;
   contractQueries: typeof contractQueries;
+  contracts: typeof contracts;
   contractsQueries: typeof contractsQueries;
+  gemini: typeof gemini;
+  kbProcessing: typeof kbProcessing;
+  knowledge: typeof knowledge;
+  knowledgeQueries: typeof knowledgeQueries;
+  "utils/llmUtils": typeof utils_llmUtils;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

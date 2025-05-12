@@ -1,0 +1,10 @@
+{
+  "id": "de_bgb_werkvertragsrecht_grundlagen",
+  "text_content": "Das deutsche Werkvertragsrecht, kodifiziert in den §§ 631 ff. BGB, bildet die grundlegende Basis für Verträge über die Herstellung oder Veränderung einer Sache oder eines anderen durch Arbeit oder Dienstleistung herbeizuführenden Erfolgs (§ 631 Abs. 2 BGB). Dies umfasst typischerweise auch Bau- und Innenausbauleistungen.\n\nKernprinzipien: Ein Werkvertrag im Sinne des § 631 BGB verpflichtet den Unternehmer zur Herstellung des versprochenen Werkes und den Besteller zur Entrichtung der vereinbarten Vergütung (§ 631 Abs. 1 BGB). Das 'Werk' ist dabei ein konkretes, abnahmefähiges Ergebnis einer Tätigkeit.\n\nHauptpflicht des Unternehmers: Die zentrale Pflicht des Unternehmers ist die mangelfreie Herstellung des Werkes (§ 633 BGB). Das Werk muss die vereinbarte Beschaffenheit aufweisen oder, falls keine Beschaffenheit vereinbart ist, sich für die vertraglich vorausgesetzte bzw. die gewöhnliche Verwendung eignen.\n\nHauptpflicht des Bestellers: Die Hauptpflicht des Bestellers ist die Zahlung der vereinbarten Vergütung. Diese wird grundsätzlich erst mit der Abnahme des Werkes fällig (§ 641 Abs. 1 BGB). Fehlt eine ausdrückliche Vereinbarung über die Höhe, gilt eine übliche oder angemessene Vergütung als geschuldet.\n\nAbnahme (§ 640 BGB): Die Abnahme ist die körperliche Entgegennahme des Werkes verbunden mit der Erklärung des Bestellers, dass er das Werk als im Wesentlichen vertragsgemäß anerkennt. Sie markiert einen entscheidenden Zeitpunkt: Die Vergütung wird fällig, die Verjährungsfrist für Mängelansprüche beginnt zu laufen, und die Beweislast für das Vorhandensein von Mängeln geht vom Unternehmer auf den Besteller über. Der Besteller ist zur Abnahme verpflichtet, sofern das Werk keine wesentlichen Mängel aufweist (§ 640 Abs. 1 BGB).",
+  "metadata": {
+    "source": "Juristische Analyse des deutschen Vertragsrechts",
+    "type": "rechtliche_grundlage",
+    "keywords": ["BGB", "Werkvertrag", "Abnahme", "Vergütung", "Mängelfreiheit", "§ 631 BGB", "§ 633 BGB", "§ 640 BGB", "§ 641 BGB"],
+    "last_updated": "2024-11-03"
+  }
+} 

@@ -3,27 +3,38 @@
 import type React from "react"
 
 import { useState } from "react"
-import { ChevronLeft, ChevronRight, Search, FileText, Menu } from "lucide-react"
+import { ChevronLeft, ChevronRight, Search, FileText, Menu, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ContractsList } from "@/components/contracts-list"
 import { Input } from "@/components/ui/input"
 import { NegotiationSimulator } from "@/components/negotiation-simulator"
-import { ContractEditorWithContract } from "@/components/contract-editor-with-contract"
 import { RiskAnalysisCharts } from "@/components/risk-analysis-charts"
-import { useContract } from "@/hooks/useConvex"
 import type { Id } from "@/convex/_generated/dataModel"
+import dynamic from 'next/dynamic'
+
+// Dynamischer Import für ContractEditorWithContract
+const ContractEditorWithContract = dynamic(
+  () => import('@/components/contract-editor-with-contract').then(mod => mod.ContractEditorWithContract),
+  {
+    ssr: false, // WICHTIG: Deaktiviert Server-Side Rendering für diese Komponente
+    loading: () => (
+      <div className="flex items-center justify-center h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Editor wird geladen...</p>
+      </div>
+    ), // Zeige eine Ladeanzeige
+  }
+)
 
 interface AnalyticsLayoutProps {
-  children: React.ReactNode
   contractId?: string
   initialTab?: "editor" | "risikoanalyse" | "verhandlung" 
 }
 
-export function AnalyticsLayout({ children, contractId, initialTab = "editor" }: AnalyticsLayoutProps) {
+export function AnalyticsLayout({ contractId, initialTab = "editor" }: AnalyticsLayoutProps) {
   const [isListCollapsed, setIsListCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState<"editor" | "risikoanalyse" | "verhandlung">(initialTab)
-  const { contract } = useContract(contractId as Id<"contracts"> | undefined)
 
   const toggleList = () => {
     setIsListCollapsed(!isListCollapsed)
@@ -58,7 +69,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
         {/* Vertragsliste - kann ein-/ausgeklappt werden */}
         <div
           className={`transition-all duration-300 flex flex-col h-full ${
-            isListCollapsed ? "w-0 overflow-hidden" : "w-full md:w-64 lg:w-72"
+            isListCollapsed ? "w-0 overflow-hidden" : "md:w-64 lg:w-72"
           }`}
         >
           <div className="h-full space-y-4 flex flex-col flex-grow min-h-0">
@@ -87,7 +98,7 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
                     </Button>
 
         {/* Content Area - nimmt immer volle Breite des Tab-Menüs ein */}
-        <div className="flex-1 transition-all duration-300 h-full">
+        <div className="flex-1 transition-all duration-300 h-full min-w-0">
           <Tabs value={activeTab} className="h-full">
             <TabsContent value="editor" className="h-full mt-0">
               {contractId ? (
@@ -101,9 +112,9 @@ export function AnalyticsLayout({ children, contractId, initialTab = "editor" }:
           )}
             </TabsContent>
             <TabsContent value="risikoanalyse" className="h-full mt-0">
-              {contractId && contract ? (
+              {contractId ? (
                 <div className="p-4 h-full">
-                  <RiskAnalysisCharts contract={contract} />
+                  <RiskAnalysisCharts contractId={contractId as Id<"contracts">} />
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground py-8">

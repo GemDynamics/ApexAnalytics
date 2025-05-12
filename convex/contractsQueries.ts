@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel"; // Import Doc
 
@@ -33,10 +33,25 @@ export const listUserContracts = query({
         if (!identity) {
             return []; 
         }
-        return await ctx.db
+        const contracts = await ctx.db
             .query("contracts")
-            .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+            .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
             .order("desc") 
             .collect();
+        return contracts;
     },
 }); 
+
+// export const getAllContractsForMigration = internalQuery({
+//   handler: async (ctx) => {
+//     return await ctx.db.query("contracts").collect();
+//   }
+// });
+
+/*
+export const getAllContractsForMigration = internalQuery({
+  handler: async (ctx) => {
+    return await ctx.db.query("contracts").collect();
+  }
+});
+*/ 

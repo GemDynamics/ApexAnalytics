@@ -1,0 +1,10 @@
+{
+  "id": "legal_de_002",
+  "textContent": "Nach deutschem Recht muss eine Vertragsstrafe angemessen sein. Als Obergrenze für die Gesamtvertragsstrafe wegen Verzugs gilt in der Regel ein Satz von 5% der relevanten Auftragssumme als noch zulässig. Klauseln, die diesen Wert überschreiten, werden regelmäßig als unangemessene Benachteiligung gemäß § 307 BGB angesehen. Die Klausel muss zudem klarstellen, dass die Strafe nur bei schuldhaftem Verzug des Auftragnehmers anfällt (§ 339 BGB, § 11 Abs. 2 VOB/B). Die Bezugsgröße für die Berechnung (Auftragssumme) muss eindeutig definiert sein. Laut BGH-Urteil (VII ZR 42/22) ist eine Klausel, die eine Vertragsstrafe von 5% auf Basis der ursprünglichen Netto-Auftragssumme in einem Einheitspreisvertrag festlegt, unwirksam, da die tatsächliche Endabrechnungssumme niedriger ausfallen kann.",
+  "metadata": {
+    "source": "Juristische Analyse des deutschen Vertragsrechts.md",
+    "type": "Gesetzliche Regelung",
+    "keywords": ["Vertragsstrafe", "Pönale", "§ 307 BGB", "§ 339 BGB", "Auftragssumme", "deutsches Recht"],
+    "last_updated": "2024-07-15"
+  }
+} 

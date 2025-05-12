@@ -4,7 +4,22 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 
 // Typ für den Status, um Typsicherheit zu gewährleisten
-type ContractStatus = Doc<"contracts">["status"];
+type ContractStatus = 
+  | "pending"
+  | "uploading"
+  | "uploaded"
+  | "preprocessing_structure"
+  | "preprocessing_structure_chunked"
+  | "structure_generation_inprogress"
+  | "structure_generation_completed"
+  | "chunking"
+  | "processing"
+  | "analysis_pending"
+  | "analysis_inprogress"
+  | "completed"
+  | "failed"
+  | "archived"
+  | "structured_json_generated"; // Wird in structureContractIncrementallyAndCreateJsonElements verwendet
 
 // UUID-Generator für JavaScript Umgebung
 function generateUUID(): string {
@@ -147,22 +162,25 @@ export const uploadFile = mutation({
 export const updateContractStatus = internalMutation({
   args: {
     contractId: v.id("contracts"),
-    status: v.string(), // Behalte v.string() für die Argumentvalidierung, aber intern den Typ verwenden
+    status: v.string(), 
     totalChunks: v.optional(v.number()),
-    // processedChunks wird in appendChunkAnalysis verwaltet
+    errorDetails: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log(`Updating status for contract ${args.contractId} to ${args.status}, totalChunks: ${args.totalChunks}`);
+    console.log(`Updating status for contract ${args.contractId} to ${args.status}, totalChunks: ${args.totalChunks}, error: ${args.errorDetails}`);
     
     const patchData: Partial<Doc<"contracts">> = { 
-      status: args.status as ContractStatus, // Typ-Assertion hier
+      status: args.status as ContractStatus, 
     };
 
     if (args.totalChunks !== undefined) {
       patchData.totalChunks = args.totalChunks;
     }
+    if (args.errorDetails !== undefined) {
+      patchData.errorDetails = args.errorDetails;
+    }
     
-    if (args.status === "processing" || args.status === "chunking" || args.status === "pending") {
+    if (args.status === "processing" || args.status === "chunking" || args.status === "pending" || args.status === "preprocessing_structure" || args.status === "preprocessing_structure_chunked" || args.status === "structure_generation_inprogress") {
         patchData.analysisProtocol = [];
         patchData.processedChunks = 0;
     }
@@ -354,4 +372,197 @@ export const updateFileName = mutation({
     
     return { success: true };
   }
+}); 
+
+// --- MIGRATION FUNCTIONS ---
+// export const _migrateSingleContractOwnerId = internalMutation({
+//   args: { contractId: v.id("contracts") },
+//   handler: async (ctx, args) => {
+//     const contract = await ctx.db.get(args.contractId);
+//     if (contract && contract.ownerId && !contract.userId) {
+//       await ctx.db.patch(args.contractId, { userId: contract.ownerId });
+//       console.log(`Migrated ownerId to userId for contract ${args.contractId}`);
+//     } else if (contract && contract.ownerId && contract.userId) {
+//       console.warn(`Contract ${args.contractId} already has userId, ownerId ('${contract.ownerId}') was not migrated.`);
+//     }
+//   },
+// });
+
+// NEU/ANGEPASST: Mutation zum Kopieren von ownerId zu userId und zum Leeren/Entfernen von ownerId
+/*
+export const _migrateOwnerIdToUserIdAndClearOldField = internalMutation({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+      console.error(
+        `_migrateOwnerIdToUserIdAndClearOldField: Contract ${args.contractId} not found.`
+      );
+      return;
+    }
+
+    let copiedToUserId = false;
+    let ownerIdCleared = false;
+    const patchData: Partial<Doc<"contracts">> & { ownerId?: undefined } = {};
+
+    // Check if ownerId exists and is not empty
+    // @ts-expect-error ownerId is removed from schema, this code is for completed migration
+    if (contract.ownerId && contract.ownerId.trim() !== "") {
+      // If userId is empty or not set, copy ownerId to userId
+      // @ts-expect-error ownerId is removed from schema
+      if (!contract.userId || contract.userId.trim() === "") {
+        // @ts-expect-error ownerId is removed from schema
+        patchData.userId = contract.ownerId; // Kopiere den Wert
+        copiedToUserId = true;
+        console.log(
+          // @ts-expect-error ownerId is removed from schema
+          `_migrateOwnerIdToUserIdAndClearOldField: Copying ownerId ('${contract.ownerId}') to userId for contract ${args.contractId}.`
+        );
+        // @ts-expect-error ownerId is removed from schema
+      } else if (contract.userId !== contract.ownerId) {
+        console.warn(
+          // @ts-expect-error ownerId is removed from schema
+          `_migrateOwnerIdToUserIdAndClearOldField: Contract ${args.contractId} has userId ('${contract.userId}') and a different ownerId ('${contract.ownerId}'). ownerId will be cleared, userId remains unchanged.`
+        );
+      }
+      // Mark ownerId to be cleared
+      // @ts-expect-error ownerId is removed from schema
+      patchData.ownerId = undefined; // Setze ownerId auf undefined
+      ownerIdCleared = true;
+    // @ts-expect-error ownerId is removed from schema
+    } else if (contract.ownerId === "") {
+      // If ownerId is an empty string, also clear it
+      // @ts-expect-error ownerId is removed from schema
+      patchData.ownerId = undefined; 
+      ownerIdCleared = true;
+      console.log(
+        `_migrateOwnerIdToUserIdAndClearOldField: Clearing empty ownerId for contract ${args.contractId}.`
+      );
+    }
+
+    if (Object.keys(patchData).length > 0) {
+      await ctx.db.patch(args.contractId, patchData);
+      if (copiedToUserId && ownerIdCleared) {
+        // console.log(`_migrateOwnerIdToUserIdAndClearOldField: Successfully copied ownerId to userId and cleared ownerId for contract ${args.contractId}.`);
+      } else if (ownerIdCleared) {
+        // console.log(`_migrateOwnerIdToUserIdAndClearOldField: Successfully cleared ownerId for contract ${args.contractId}.`);
+      }
+    } else {
+      // console.log(
+      //   `_migrateOwnerIdToUserIdAndClearOldField: No changes needed for contract ${args.contractId}.`
+      // );
+    }
+    return { copiedToUserId, ownerIdCleared };
+  },
+});
+*/
+// --- END MIGRATION FUNCTIONS --- 
+
+export const updateContractProcessingProgress = internalMutation({
+  args: {
+    contractId: v.id("contracts"),
+    chunksProcessed: v.number(),
+    statusMessage: v.optional(v.string()),
+    currentStatus: v.string(), // z.B. "structure_generation_inprogress"
+  },
+  handler: async (ctx, args) => {
+    console.log(`Updating processing progress for contract ${args.contractId}: ${args.chunksProcessed} chunks processed. Status: ${args.currentStatus}. Message: ${args.statusMessage || ''}`);
+    const patchData: Partial<Doc<"contracts">> = {
+      processedChunks: args.chunksProcessed,
+      status: args.currentStatus as ContractStatus,
+    };
+    if (args.statusMessage !== undefined) {
+      patchData.currentProcessingStepDetail = args.statusMessage;
+    }
+    await ctx.db.patch(args.contractId, patchData);
+  },
+});
+
+export const updateContractWithStructuredData = internalMutation({
+  args: {
+    contractId: v.id("contracts"),
+    fullMarkdownText: v.string(),
+    structuredContractElements: v.array(
+      v.object({
+        elementType: v.string(), // Sollte eigentlich ein v.union aus den erlaubten Typen sein
+        elementId: v.string(),
+        markdownContent: v.string(),
+        originalOrderInChunk: v.number(),
+        globalOriginalOrder: v.number(),
+        // Die folgenden Felder sind für spätere Analysestufen und hier optional
+        evaluation: v.optional(v.string()),
+        reason: v.optional(v.string()),
+        recommendation: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    console.log(`Storing structured data for contract ${args.contractId}. Markdown length: ${args.fullMarkdownText.length}, Elements: ${args.structuredContractElements.length}`);
+    await ctx.db.patch(args.contractId, {
+      fullMarkdownText: args.fullMarkdownText,
+      structuredContractElements: args.structuredContractElements,
+      // processedChunks und totalChunks werden hier nicht direkt angepasst,
+      // sondern durch updateContractStatus oder updateContractProcessingProgress
+    });
+  },
+}); 
+
+// NEU: Mutation zum Speichern des Analyseergebnisses für ein einzelnes Strukturelement
+export const mergeAnalysisResult = internalMutation({
+  args: {
+    contractId: v.id("contracts"),
+    elementId: v.string(), // Die ID des zu aktualisierenden Strukturelements
+    evaluation: v.string(),
+    reason: v.string(),
+    recommendation: v.string(),
+    isError: v.optional(v.boolean()) // Flag, ob dies ein Fehlerergebnis ist
+  },
+  handler: async (ctx, args) => {
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+      console.error(`Contract not found: ${args.contractId} in mergeAnalysisResult`);
+      return; // Oder Fehler werfen?
+    }
+
+    // Kopiere das Array, um es sicher zu modifizieren
+    let updatedElements = contract.structuredContractElements 
+                            ? [...contract.structuredContractElements] 
+                            : [];
+
+    // Finde den Index des Elements, das aktualisiert werden soll
+    const elementIndex = updatedElements.findIndex(el => el.elementId === args.elementId);
+
+    if (elementIndex === -1) {
+      console.error(`Element with id ${args.elementId} not found in contract ${args.contractId} for merging analysis.`);
+      // Hier könnte man entscheiden, ob man abbricht oder den Fehler loggt und weitermacht.
+      // Fürs Erste loggen wir nur und machen nichts.
+      return; 
+    }
+
+    // Aktualisiere das gefundene Element
+    updatedElements[elementIndex] = {
+      ...updatedElements[elementIndex],
+      evaluation: args.evaluation,
+      reason: args.reason,
+      recommendation: args.recommendation,
+    };
+
+    // Zähle verarbeitete Chunks hoch
+    // WICHTIG: Wir zählen hier analysierte *Elemente*, nicht Analyse-Chunks.
+    // Der Name "processedChunks" ist daher etwas irreführend, aber wir behalten ihn bei,
+    // um Konsistenz mit dem Schema zu wahren. `totalChunks` im Schema bezieht sich auf Analyse-Chunks.
+    // Wir können den Status erst auf "completed" setzen, wenn ALLE Elemente aus ALLEN Chunks analysiert wurden.
+    // Das Tracken auf Element-Ebene ist komplexer.
+    
+    // Einfacher Ansatz: Wir aktualisieren nur die Elemente und lassen die Haupt-Action 
+    // (analyzeContractChunkWithStructureAndVectorKB) den Status und processedChunks (für Analyse-Chunks) verwalten.
+    // Diese Mutation hier fokussiert sich NUR auf das Mergen der Daten für EIN Element.
+    
+    await ctx.db.patch(args.contractId, {
+      structuredContractElements: updatedElements,
+      // Status- und processedChunks-Updates erfolgen separat, z.B. am Ende einer Action, die einen ganzen Analyse-Chunk verarbeitet.
+    });
+
+    console.log(`Merged analysis result for element ${args.elementId} in contract ${args.contractId}.`);
+  },
 }); 

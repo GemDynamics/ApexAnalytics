@@ -1,0 +1,10 @@
+{
+  "id": "legal_de_005",
+  "textContent": "Nach deutschem Recht kann die formularmäßige Forderung einer Bürgschaft 'auf erstes Anfordern' in AGB gemäß § 307 BGB häufig unwirksam sein, insbesondere wenn der Sicherungszweck unklar ist oder die Klausel mit anderen Sicherheiten kumuliert wird. Sie benachteiligt den Bürgen (und damit indirekt den Auftragnehmer) unangemessen, da sie dessen Einwendungsmöglichkeiten stark beschneidet. Der BGH prüft solche Klauseln sehr kritisch wegen des Missbrauchspotenzials und der Verlagerung des Risikos auf den Bürgen. Bezüglich der Höhe hat der BGH 10% der Auftragssumme für Vertragserfüllungsbürgschaften in AGB gebilligt. Die VOB/B sieht für die Gewährleistungssicherheit i.d.R. 5% der Abrechnungssumme vor (§ 17 VOB/B).",
+  "metadata": {
+    "source": "Juristische Analyse des deutschen Vertragsrechts.md",
+    "type": "Gesetzliche Regelung",
+    "keywords": ["Bürgschaft", "auf erstes Anfordern", "Sicherheiten", "§ 307 BGB", "Erfüllungsbürgschaft", "deutsches Recht"],
+    "last_updated": "2024-07-15"
+  }
+} 

@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_005",
+  "textContent": "Bietergarantien (Bid-Bonds) sind nicht akzeptabel. Eine Hinterlegung einer Angebotsgarantie soll nicht gefordert werden. Klauseln, die eine Angebotsgarantie (Bid-Bond) verlangen, sind kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Bietergarantie", "Bid-Bond", "Angebotsgarantie", "Sicherheiten", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 

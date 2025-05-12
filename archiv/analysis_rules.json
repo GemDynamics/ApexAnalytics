@@ -1,0 +1,31 @@
+{
+  "red_flags": [
+    "rule_red_flag_001",
+    "rule_red_flag_002",
+    "rule_red_flag_003",
+    "rule_red_flag_004",
+    "rule_red_flag_005",
+    "rule_red_flag_006",
+    "rule_red_flag_007",
+    "legal_de_001",
+    "legal_de_002",
+    "legal_de_003",
+    "legal_de_004",
+    "legal_de_005",
+    "legal_at_001",
+    "legal_at_002",
+    "legal_at_003",
+    "legal_at_004",
+    "legal_at_005"
+  ],
+  "yellow_flags": [
+    "rule_yellow_flag_001",
+    "rule_yellow_flag_002",
+    "rule_yellow_flag_003",
+    "rule_yellow_flag_004",
+    "rule_yellow_flag_005",
+    "rule_yellow_flag_006",
+    "legal_at_006"
+  ],
+  "green_patterns": []
+} 

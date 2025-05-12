@@ -1,5 +1,7 @@
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
 import { ConvexError } from "convex/values";
+import { v } from "convex/values";
+import { Id, Doc } from "./_generated/dataModel";
 
 // Query zum Auflisten der Verträge für den aktuellen Benutzer
 export const listContracts = query({
@@ -19,11 +21,34 @@ export const listContracts = query({
       .query("contracts")
       // Annahme: Das Schema hat ein Feld wie `ownerId` oder `userId`, das die Clerk-ID speichert.
       // Wir verwenden `identity.subject`, was die eindeutige ID des authentifizierten Benutzers ist.
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
       // Sortieren nach Upload-Datum (oder Erstellungszeit), neueste zuerst
       .order("desc") 
       .collect();
 
+    return contracts;
+  },
+}); 
+
+// Query zum Abrufen eines einzelnen Vertrags anhand seiner ID
+export const getContractById = query({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+      throw new ConvexError("Contract not found.");
+    }
+    return contract;
+  },
+}); 
+
+// NEU: Interne Query, um alle Verträge für die Migration abzurufen
+export const getAllContractsForMigration = internalQuery({
+  handler: async (ctx): Promise<Doc<"contracts">[]> => {
+    // Ruft alle Dokumente aus der 'contracts'-Tabelle ab.
+    // Bei sehr großen Tabellen könnte man hier über Pagination nachdenken,
+    // aber für eine einmalige Migration ist dies oft ausreichend.
+    const contracts = await ctx.db.query("contracts").collect();
     return contracts;
   },
 }); 

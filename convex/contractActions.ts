@@ -2,13 +2,13 @@
 
 "use node";
 
-import { action, internalAction, internalMutation } from "./_generated/server";
+import { action, internalAction, internalMutation, internalQuery, mutation, query, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { PDFDocument } from 'pdf-lib';
 import extract from 'pdf-text-extract';
 import mammoth from 'mammoth';
-import { Id } from "./_generated/dataModel";
+import { Id, Doc } from "./_generated/dataModel";
 import { promisify } from 'util';
 import { RULES_FOR_ANALYSIS, LEGAL_BASIS_EXTRACT } from './ai_knowledge_base'; // Importiere die Konstanten
 
@@ -19,6 +19,7 @@ import { RULES_FOR_ANALYSIS, LEGAL_BASIS_EXTRACT } from './ai_knowledge_base'; /
 // const extractTextFromPDF = promisify(extract);
 
 const CHUNK_SIZE_WORDS = 1500;
+const PRE_CHUNK_SIZE_WORDS = 2500;
 
 async function getBuffer(file: Blob | ArrayBuffer): Promise<Buffer> {
     if (file instanceof ArrayBuffer) {
@@ -28,25 +29,48 @@ async function getBuffer(file: Blob | ArrayBuffer): Promise<Buffer> {
     return Buffer.from(arrayBuffer);
 }
 
-function splitTextIntoChunks(text: string, chunkSizeInWords: number): string[] {
-  const sentences = text.split(/(?<=[.!?])\s+/); 
+// Aktualisierte Funktion für absatzbasiertes Pre-Chunking
+function splitTextIntoPreChunks(text: string, chunkSizeInWords: number): string[] {
+  // 1. Teile den Text in Absätze (Blöcke, die durch doppelte Zeilenumbrüche getrennt sind)
+  //    Normalisiere Zeilenumbrüche zu \n und splitte dann
+  const paragraphs = text.replace(/\r\n/g, '\n').split(/\n\n+/);
   const chunks: string[] = [];
-  let currentChunk = "";
+  let currentChunkLines: string[] = [];
   let currentWordCount = 0;
 
-  for (const sentence of sentences) {
-    const sentenceWordCount = sentence.split(/\s+/).length;
-    if (currentWordCount + sentenceWordCount > chunkSizeInWords && currentWordCount > 0) {
-      chunks.push(currentChunk.trim());
-      currentChunk = "";
+  for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim();
+    if (trimmedParagraph.length === 0) continue; // Leere Absätze überspringen
+
+    const paragraphWordCount = trimmedParagraph.split(/\s+/).filter(Boolean).length;
+
+    // Wenn der aktuelle Absatz allein schon die Chunk-Größe überschreitet ODER
+    // wenn das Hinzufügen dieses Absatzes zum aktuellen Chunk die Größe sprengen würde UND der aktuelle Chunk nicht leer ist
+    if ((paragraphWordCount > chunkSizeInWords && currentChunkLines.length > 0) || 
+        (currentWordCount + paragraphWordCount > chunkSizeInWords && currentWordCount > 0)) {
+      // Finalisiere den aktuellen Chunk
+      chunks.push(currentChunkLines.join("\n\n")); // Absätze wieder mit Doppelumbruch verbinden
+      currentChunkLines = [];
       currentWordCount = 0;
     }
-    currentChunk += sentence + " ";
-    currentWordCount += sentenceWordCount;
+
+    // Füge den aktuellen Absatz zum (neuen oder bestehenden) Chunk hinzu
+    currentChunkLines.push(trimmedParagraph);
+    currentWordCount += paragraphWordCount;
+
+    // Sonderfall: Wenn ein einzelner Absatz bereits die Chunk-Größe überschreitet, wird er zu einem eigenen Chunk
+    if (paragraphWordCount >= chunkSizeInWords && currentChunkLines.length === 1) {
+        chunks.push(currentChunkLines.join("\n\n"));
+        currentChunkLines = [];
+        currentWordCount = 0;
+    }
   }
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk.trim());
+
+  // Füge den letzten verbleibenden Chunk hinzu, falls vorhanden
+  if (currentChunkLines.length > 0) {
+    chunks.push(currentChunkLines.join("\n\n"));
   }
+
   return chunks;
 }
 
@@ -60,7 +84,7 @@ export const startFullContractAnalysis = action({
 
     await ctx.runMutation(internal.contractMutations.updateContractStatus, {
       contractId: args.contractId,
-      status: "processing",
+      status: "preprocessing_structure",
       totalChunks: 0,
     });
 
@@ -75,38 +99,41 @@ export const startFullContractAnalysis = action({
     const fileBuffer = await getBuffer(fileBlob);
 
     let extractedText = "";
-    const contractDocument = await ctx.runQuery(api.contractsQueries.getContractById, { contractId: args.contractId });
+    const contractDocument = await ctx.runQuery(api.contractQueries.getContractById, { contractId: args.contractId });
     if (!contractDocument) {
         await ctx.runMutation(internal.contractMutations.updateContractStatus, {
             contractId: args.contractId, status: "failed",
         });
         throw new ConvexError("Contract document not found in DB for text extraction.");
     }
-    const fileName = contractDocument.fileName.toLowerCase();
+    const fileName = contractDocument.fileName ? contractDocument.fileName.toLowerCase() : "undefined_filename";
+    const fileType = fileName.endsWith(".docx") ? "docx" :
+                     fileName.endsWith(".pdf") ? "pdf" :
+                     fileName.endsWith(".txt") ? "txt" : undefined;
     
     console.log(`Attempting text extraction for: ${fileName}`);
 
     try {
-        if (fileName.endsWith(".pdf")) {
+        if (fileType === "pdf") {
             // PDF-Extraktion mit pdf-text-extract wurde entfernt, da sie fs/path benötigt.
             console.warn("PDF extraction using pdf-text-extract is currently disabled because it requires filesystem access.");
             // Alternativ: Verwende eine andere Bibliothek oder eine Convex HTTP Action für die Extraktion.
             // Fallback mit pdf-lib (kann normalerweise keinen Text extrahieren)
             try {
                 const pdfDoc = await PDFDocument.load(fileBuffer);
-                extractedText = `PDF konnte nicht extrahiert werden (fs-Zugriff erforderlich). Das Dokument hat ${pdfDoc.getPageCount()} Seiten.`;
+                extractedText = `PDF konnte nicht extrahiert werden (fs-Zugriff erforderlich). Das Dokument hat ${pdfDoc.getPageCount()} Seiten. Bitte manuell extrahieren und als TXT hochladen.`; // Hinweis für den Benutzer
                 console.log(`PDF loaded with pdf-lib. Page count: ${pdfDoc.getPageCount()}.`);
             } catch (pdfLibError: any) {
                 console.error("Error loading PDF with pdf-lib:", pdfLibError);
                 extractedText = "Fehler beim Laden der PDF-Datei.";
             }
             
-        } else if (fileName.endsWith(".docx")) {
+        } else if (fileType === "docx") {
             console.log("Processing DOCX file...");
             const result = await mammoth.extractRawText({ buffer: fileBuffer });
             extractedText = result.value;
             console.log("DOCX text extracted successfully.");
-        } else if (fileName.endsWith(".txt")) { 
+        } else if (fileType === "txt") { 
             console.log("Processing TXT file...");
             extractedText = fileBuffer.toString('utf-8');
             console.log("TXT text extracted successfully.");
@@ -114,7 +141,7 @@ export const startFullContractAnalysis = action({
             await ctx.runMutation(internal.contractMutations.updateContractStatus, {
                 contractId: args.contractId, status: "failed",
             });
-            throw new ConvexError(`Unsupported file type: ${contractDocument.fileName}. Only .pdf, .docx, and .txt are currently supported.`);
+            throw new ConvexError(`Unsupported file type: ${fileName}. Only .docx and .txt are currently supported for full extraction.`);
         }
     } catch (error: any) {
         console.error(`Error during text extraction for ${fileName}:`, error);
@@ -129,43 +156,209 @@ export const startFullContractAnalysis = action({
         contractId: args.contractId,
         status: "failed",
       });
-      throw new ConvexError(`Extracted text from ${contractDocument.fileName} is empty.`);
+      throw new ConvexError(`Extracted text from ${fileName} is empty.`);
     }
-    console.log(`Text extracted (length: ${extractedText.length}) from ${contractDocument.fileName}`);
+    console.log(`Text extracted (length: ${extractedText.length}) from ${fileName}`);
 
-    const rulesText = RULES_FOR_ANALYSIS;
-    const legalBasisText = LEGAL_BASIS_EXTRACT;
-    console.log("Knowledge base content loaded from constants.");
+    // Entfernung von direkter Verwendung von RULES_FOR_ANALYSIS und LEGAL_BASIS_EXTRACT hier
+    console.log("Knowledge base content will be used in later analysis stages.");
 
-    const chunks = splitTextIntoChunks(extractedText, CHUNK_SIZE_WORDS);
-    if (chunks.length === 0) {
+    const preChunks = splitTextIntoPreChunks(extractedText, PRE_CHUNK_SIZE_WORDS);
+    if (preChunks.length === 0) {
       await ctx.runMutation(internal.contractMutations.updateContractStatus, {
         contractId: args.contractId,
         status: "failed",
       });
-      throw new ConvexError("No chunks created from text.");
+      throw new ConvexError("No pre-chunks created from text.");
     }
-    console.log(`Text split into ${chunks.length} chunks.`);
+    console.log(`Text split into ${preChunks.length} pre-chunks.`);
 
     await ctx.runMutation(internal.contractMutations.updateContractStatus, {
         contractId: args.contractId,
-        status: "chunking",
-        totalChunks: chunks.length,
+        status: "preprocessing_structure_chunked",
+        totalChunks: preChunks.length,
     });
 
-    for (let i = 0; i < chunks.length; i++) {
-      console.log(`Scheduling analysis for chunk ${i + 1}/${chunks.length}`);
-      await ctx.scheduler.runAfter(0, internal.contractActions.analyzeContractChunk, {
+    await ctx.scheduler.runAfter(0, internal.contractActions.structureContractIncrementallyAndCreateJsonElements, {
+      contractId: args.contractId,
+      preChunks: preChunks,
+    });
+    
+    console.log(`Structuring process scheduled with ${preChunks.length} pre-chunks for contractId: ${args.contractId}`);
+    return { message: `Structuring process started for ${preChunks.length} pre-chunks.` };
+  },
+});
+
+// Globale Typdefinitionen, falls noch nicht vorhanden oder spezifischer benötigt
+// (Diese sollten idealerweise in einer zentralen `types.d.ts` oder ähnlich liegen)
+type StructuredElement = {
+  elementType: "titleH1" | "sectionH2" | "clauseH3" | "paragraph";
+  elementId: string;
+  markdownContent: string;
+  originalOrderInChunk: number; // Reihenfolge innerhalb des *Antwort-JSONs des KI-Agenten für einen Vor-Chunk*
+  globalOriginalOrder: number; // Globale Reihenfolge über alle Elemente des Vertrags - NICHT MEHR OPTIONAL
+};
+
+export const structureContractIncrementallyAndCreateJsonElements = internalAction({
+  args: {
+    contractId: v.id("contracts"),
+    preChunks: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    console.log(`Structuring ${args.preChunks.length} pre-chunks for contract ${args.contractId}.`);
+    
+    await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+      contractId: args.contractId,
+      status: "structure_generation_inprogress", 
+      totalChunks: args.preChunks.length, // Anzahl der Vor-Chunks als totalChunks
+    });
+
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is not set in environment variables.");
+      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
         contractId: args.contractId,
-        chunkText: chunks[i],
-        rulesText: rulesText,
-        legalBasisText: legalBasisText,
-        chunkNumber: i + 1,
-        totalChunks: chunks.length,
+        status: "failed",
+        errorDetails: "GEMINI_API_KEY missing"
+      });
+      throw new ConvexError("GEMINI_API_KEY is not configured.");
+    }
+
+    let finalFullMarkdownText = "";
+    let finalStructuredElementsList: StructuredElement[] = [];
+    let globalElementCounter = 0;
+
+    // System-Prompt für KI-Agent 1 (Strukturierungs-Agent) aus dem Gesamtplan
+    // Wichtig: Im Gesamtplan ist der Prompt detaillierter, hier nur der Kern
+    const systemPromptAgent1 = `Du bist ein KI-Assistent, spezialisiert auf die Analyse und Strukturierung von deutschsprachigen Bauverträgen. Deine Aufgabe ist es, den folgenden TEXTABSCHNITT eines Vertrags in ein **standardisiertes, gut strukturiertes Markdown-Format** zu überführen und die darin enthaltenen Strukturelemente präzise als eine Liste von JSON-Objekten zu identifizieren. Ziel ist eine **einheitliche Struktur** über alle Verträge hinweg.\n\nANWEISUNGEN ZUR STRUKTURIERUNG UND MARKDOWN-FORMATIERUNG INNERHALB DIESES TEXTABSCHNITTS:\n\n1.  **VERTRAGSTITEL (Nur relevant, wenn dieser Textabschnitt der absoluten Anfang des gesamten Dokuments darstellt):** Formatiere als H1: \`# Titeltext\`.\n2.  **HAUPTABSCHNITTE/PARAGRAPHEN:** Formatiere **einheitlich** als H2 mit Paragraphenzeichen und Nummerierung (falls vorhanden, sonst generiere fortlaufend): \`## § N Abschnittstitel\`. Beispiel: \`## § 1 Vertragsgrundlagen\`.\n3.  **UNTERPUNKTE/KLAUSELN:** Formatiere **einheitlich** als H3 mit Paragraphenzeichen und Nummerierung (z.B. \`§ N.M\`), gefolgt vom Klauseltext. Beispiel: \`### § 1.1 Geltung der VOB/B\\nDer Text der Klausel...\`. Auch materielle Listenpunkte sind als Klauseln (H3) zu formatieren.\n4.  **REINER TEXT/ABSCHNITTE OHNE EXPLIZITE STRUKTUR:** Formatiere als einfacher Markdown-Absatz.\n\nANWEISUNGEN ZUR JSON-AUSGABE FÜR DIESEN TEXTABSCHNITT:\n\nGib für JEDES identifizierte Strukturelement ein JSON-Objekt zurück. Alle JSON-Objekte dieses Textabschnitts müssen in einem JSON-Array zusammengefasst werden. Jedes JSON-Objekt MUSS folgende Felder haben:\n\n*   \`elementType\` (string): Gültige Werte: \"titleH1\", \"sectionH2\", \"clauseH3\", \"paragraph\".\n*   \`markdownContent\` (string): Der vollständige Inhalt im standardisierten Markdown-Format.\n*   \`originalOrderInChunk\` (number): Fortlaufende Nummer (beginnend bei 0) für die Reihenfolge der Elemente innerhalb dieses Textabschnitts.\n\nWICHTIG: Erhalte die exakte Reihenfolge der Inhalte. Zerlege den Textabschnitt vollständig. Stelle sicher, dass der Output ein valides JSON-Array ist. Beginne direkt mit [ und ende mit ].\n\nBeispiel für die JSON-Ausgabe (Array von Objekten):\n\`\`\`json\n[\n  {\n    \"elementType\": \"sectionH2\",\n    \"markdownContent\": \"## § 1 Vertragsgrundlagen\\n\\nGrundlage dieses Vertrages sind...\",\n    \"originalOrderInChunk\": 0\n  },\n  {\n    \"elementType\": \"clauseH3\",\n    \"markdownContent\": \"### § 1.1 Geltung der VOB/B\\nEs gilt die VOB/B...\",\n    \"originalOrderInChunk\": 1\n  },\n  {\n    \"elementType\": \"paragraph\",\n    \"markdownContent\": \"Dieser Text steht zwischen zwei Klauseln...\",\n    \"originalOrderInChunk\": 2\n  }\n]\n\`\`\`\n`;
+
+    // Typ für Elemente direkt aus der KI-Antwort (ohne elementId und globalOriginalOrder)
+    type RawStructuredElementFromAI = {
+        elementType: string; // Hier noch allgemeiner string
+        markdownContent: string;
+        originalOrderInChunk: number;
+    };
+
+    for (let i = 0; i < args.preChunks.length; i++) {
+      const preChunkText = args.preChunks[i];
+      const chunkIndex = i; // Für elementId
+      const chunkNumberForLog = i + 1;
+      console.log(`Processing pre-chunk ${chunkNumberForLog}/${args.preChunks.length} for contract ${args.contractId}`);
+
+      const userPromptForAgent1 = `--- TEXTABSCHNITT (AUS VOR-CHUNK ${chunkNumberForLog}) ---\n${preChunkText}\n--- ENDE TEXTABSCHNITT ---`;
+
+      let rawElementsFromAI: RawStructuredElementFromAI[] = [];
+
+      try {
+        // --- START Echter Gemini API Call ---
+        console.log("Calling Gemini for chunk structuring:", chunkIndex);
+        const structuredJsonResponse = await ctx.runAction(internal.gemini.generateStructuredJson, {
+          textInput: preChunkText, // Korrigiert von userPrompt zu textInput
+          systemPrompt: systemPromptAgent1,
+          modelName: "gemini-2.0-flash" // <<< Korrektes Modell
+        });
+
+        // Überprüfen, ob die Antwort ein Array ist (wie vom Prompt gefordert)
+        if (Array.isArray(structuredJsonResponse)) {
+          // Typ-Validierung für jedes Element (einfache Prüfung)
+          rawElementsFromAI = structuredJsonResponse.filter(
+            (item: any): item is RawStructuredElementFromAI => {
+              // Explizite Prüfung der Felder und Typen
+              return item != null && 
+                     typeof item.elementType === 'string' &&
+                     typeof item.markdownContent === 'string' &&
+                     typeof item.originalOrderInChunk === 'number';
+            }
+          );
+          console.log(`Received ${rawElementsFromAI.length} valid structured elements from Gemini for pre-chunk ${chunkNumberForLog}.`);
+          if (rawElementsFromAI.length !== structuredJsonResponse.length) {
+            console.warn(`Gemini response for pre-chunk ${chunkNumberForLog} contained some invalid elements.`);
+          }
+        } else {
+          console.error(`Gemini response for pre-chunk ${chunkNumberForLog} was not a JSON array as expected. Response:`, structuredJsonResponse);
+          // Hier optional Fehler werfen oder mit leerem Array weitermachen
+          // rawElementsFromAI bleibt leer
+        }
+        // --- END Echter Gemini API Call ---
+
+        if (rawElementsFromAI.length === 0) {
+          console.warn(`Keine validen Strukturelemente aus Vor-Chunk ${chunkNumberForLog} extrahiert oder Fehler bei der Extraktion.`);
+        }
+
+      } catch (error: any) {
+        console.error(`Error calling or processing Gemini response for pre-chunk ${chunkNumberForLog}:`, error);
+        await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+          contractId: args.contractId,
+          status: "failed",
+          errorDetails: `Fehler bei der Strukturanalyse von Vor-Chunk ${chunkNumberForLog}: ${error.message || 'Unbekannter API Fehler'}`
+        });
+        // Im Fehlerfall mit nächstem Chunk weitermachen, aber Fehler ist im Status vermerkt
+        continue; // Überspringe den Rest der Schleife für diesen fehlerhaften Chunk
+      }
+      
+      // Füge die Elemente zur Gesamtliste hinzu, generiere elementId und setze globalOriginalOrder
+      rawElementsFromAI.forEach((rawElement, elemIndexInChunk) => {
+        // Generiere die programmatische elementId
+        let typePrefix = 'unk';
+        switch (rawElement.elementType) {
+          case "titleH1": typePrefix = 'h1'; break;
+          case "sectionH2": typePrefix = 'sH2'; break;
+          case "clauseH3": typePrefix = 'cH3'; break;
+          case "paragraph": typePrefix = 'p'; break;
+          default: 
+            console.warn(`Unknown elementType found: ${rawElement.elementType} in chunk ${chunkNumberForLog}`);
+            typePrefix = 'unk'; // Oder spezifischer Fehler-Präfix
+        }
+        const elementId = `${typePrefix}_c${chunkIndex}_e${elemIndexInChunk}`;
+        
+        // Validiere elementType gegen den erlaubten Typ StructuredElement
+        const validElementType = ["titleH1", "sectionH2", "clauseH3", "paragraph"].includes(rawElement.elementType) 
+                                ? rawElement.elementType as StructuredElement['elementType'] 
+                                : "paragraph"; // Fallback oder Fehler werfen?
+
+        const elementWithGlobalOrder: StructuredElement = { 
+            ...rawElement, 
+            elementType: validElementType,
+            elementId: elementId, 
+            globalOriginalOrder: globalElementCounter++ 
+        };
+        finalStructuredElementsList.push(elementWithGlobalOrder);
+        finalFullMarkdownText += elementWithGlobalOrder.markdownContent + "\n\n"; // Füge zwei Newlines für bessere Lesbarkeit hinzu
+      });
+
+      await ctx.runMutation(internal.contractMutations.updateContractProcessingProgress, {
+        contractId: args.contractId,
+        chunksProcessed: chunkNumberForLog, // i + 1
+        statusMessage: `Struktur für Vor-Chunk ${chunkNumberForLog}/${args.preChunks.length} generiert.`,
+        currentStatus: "structure_generation_inprogress" // Hinzugefügt
       });
     }
-    console.log(`All chunks scheduled for contractId: ${args.contractId}`);
-    return { message: `Analysis process started for ${chunks.length} chunks.` };
+
+    // Speichere die gesammelten strukturierten Daten und den Markdown-Text
+    await ctx.runMutation(internal.contractMutations.updateContractWithStructuredData, {
+        contractId: args.contractId,
+        fullMarkdownText: finalFullMarkdownText.trim(),
+        structuredContractElements: finalStructuredElementsList,
+    });
+
+    await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+      contractId: args.contractId,
+      status: "structured_json_generated",
+      totalChunks: finalStructuredElementsList.length // Jetzt ist totalChunks die Anzahl der Strukturelemente
+    });
+
+    console.log(`Strukturierung für Vertrag ${args.contractId} abgeschlossen. ${finalStructuredElementsList.length} Strukturelemente generiert.`);
+    
+    // Nächster Schritt: Analyse-Chunks erstellen (Stufe 2)
+    await ctx.scheduler.runAfter(0, internal.contractActions.createAnalysisChunksFromStructuredElements, {
+        contractId: args.contractId,
+    });
+    console.log(`Stufe 2 (Analysis Chunking) für Vertrag ${args.contractId} geplant.`);
+
+    return { 
+        message: `Strukturierung für Vertrag ${args.contractId} erfolgreich abgeschlossen und Analyse-Chunking geplant.`,
+        structuredElementCount: finalStructuredElementsList.length
+    };
   },
 });
 
@@ -193,8 +386,38 @@ export const analyzeContractChunk = internalAction({
       throw new ConvexError("GEMINI_API_KEY is not configured.");
     }
 
-    const systemPrompt = `Du bist ein spezialisierter KI-Assistent für die automatisierte Prüfung von deutschsprachigen Bauverträgen und Allgemeinen Geschäftsbedingungen (AGBs), insbesondere im Kontext des deutschen und österreichischen Baurechts (BGB, VOB, ÖNORM). Deine Hauptaufgabe ist es, Nutzern zu helfen, Verträge schnell zu analysieren, Risiken zu identifizieren und Compliance sicherzustellen.
-    Gib als Ergebnis NUR ein valides JSON-Array zurück, das die analysierten Klauseln dieses Chunks enthält. Jedes Objekt im Array MUSS folgende Felder haben: "clauseText" (string), "evaluation" (string: "Rot", "Gelb" oder "Grün"), "reason" (string), "recommendation" (string). Wenn keine identifizierbaren Klauseln in diesem Chunk sind, gib ein leeres JSON-Array zurück: []. Beispiel für ein einzelnes Klauselobjekt: {"clauseText": "Text der Klausel...", "evaluation": "Rot", "reason": "Verstößt gegen Regel X...", "recommendation": "Entfernen oder neu verhandeln..."}`;
+    const systemPrompt = `Du bist ein spezialisierter KI-Assistent für die automatisierte Prüfung von deutschsprachigen Bauverträgen und Allgemeinen Geschäftsbedingungen (AGBs), insbesondere im Kontext des deutschen und österreichischen Baurechts (BGB, VOB, ÖNORM). Deine Hauptaufgabe ist es, Verträge schnell zu analysieren, Risiken zu identifizieren und Compliance für den Bauunternehmen sicherzustellen.
+
+Bewerte Vertragsklauseln STRENG nach diesem Ampelsystem:
+
+ROT (nicht akzeptabel):
+- Pay-When-Paid Klauseln (Zahlungen abhängig von Zahlung des Bauherrn)
+- Vollständige Übertragung gewerblicher Schutzrechte (anstelle von Nutzungsrechten)
+- Vertragsstrafen ohne Begrenzung (max. akzeptabel: 5% der Auftragssumme)
+- Back-to-Back Vertragsübernahme (vollständige Einbeziehung der Pflichten/Haftung aus Bauherrnvertrag)
+- Bietergarantie (Bid-Bond) Forderungen
+- Fehlendes fixes Bauende im Vertrag
+- Verschuldensunabhängige Pönale/Schadenersatz-Klauseln
+- Erfüllungsgarantien ohne Einschränkung
+
+GELB (verhandelbar):
+- Gestörter Bauablauf (Ausschluss von Bauzeitverlängerung/Mehrkosten)
+- Ausschluss der ÖNORM B 2110
+- Vertragserfüllungsbürgschaft über 10%
+- Konzern- oder projektübergreifende Haftung
+- Persönliche Haftung über gesetzlichen Rahmen hinaus
+- Ausschluss von Sub-Sub-Vergabe
+- Mängelregelung außerhalb der ÖNORM
+
+GRÜN (akzeptabel):
+- Klauseln, die keine der oben genannten Probleme aufweisen
+- Vertragsstrafen mit klarer Begrenzung auf max. 5% der Auftragssumme
+- Gewährung von Nutzungsrechten statt Übertragung von Schutzrechten
+- Klare Abnahmeregelungen gemäß ÖNORM B 2110
+
+Gib als Ergebnis NUR ein valides JSON-Array zurück, das die analysierten Klauseln dieses Chunks enthält. Jedes Objekt im Array MUSS folgende Felder haben: "clauseText" (string), "evaluation" (string: "Rot", "Gelb" oder "Grün"), "reason" (string), "recommendation" (string). Wenn keine identifizierbaren Klauseln in diesem Chunk sind, gib ein leeres JSON-Array zurück: [].
+
+Beispiel: [{"clauseText": "Text der Klausel...", "evaluation": "Rot", "reason": "Pay-When-Paid Klausel: Die Zahlung ist von der Zahlung des Bauherrn abhängig, was nicht akzeptabel ist.", "recommendation": "Diese Klausel sollte entfernt oder dahingehend geändert werden, dass Zahlungen unabhängig von Zahlungen des Bauherrn erfolgen."}]`;
 
     const userPrompt = `Du analysierst einen Teil eines größeren Bauvertrags (Chunk ${args.chunkNumber}/${args.totalChunks}). Identifiziere alle Klauseln innerhalb dieses Textabschnitts, bewerte sie gemäß den beigefügten "Regeln für die Analyse" und erstelle ein Protokoll für die Klauseln in diesem Chunk. Berücksichtige bei deiner Bewertung auch die beigefügten juristischen Referenzinformationen.
 
@@ -221,7 +444,7 @@ Stelle sicher, dass deine Antwort ausschließlich ein valides JSON-Array ist, wi
         ],
       };
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -437,9 +660,20 @@ export const optimizeClauseWithAI = action({
         }
 
         // Angepasster Prompt für direkte Optimierung
-        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel, eine verbesserte Formulierung vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer ist. Berücksichtige dabei gängige Praktiken und potenziell das deutsche/österreichische Baurecht.
-        
-        Gib als Ergebnis NUR ein valides JSON-Array mit EINEM String zurück. Dieser String ist die optimierte Formulierung. Beispiel: ["Hier ist der optimierte Text der Klausel."]`;
+        const systemPrompt = `Du bist ein spezialisierter Rechtsexperte für Bauverträge nach deutschem und österreichischem Recht (BGB, VOB, ÖNORM). Deine Aufgabe ist es, problematische Vertragsklauseln für Bauunternehmer zu verbessern.
+
+Achte besonders auf folgende Problembereiche:
+- Pay-When-Paid Klauseln (Zahlungsabhängigkeit) → Zahlung unabhängig von Drittparteien
+- Übertragung gewerblicher Schutzrechte → Beschränkung auf Nutzungsrechte
+- Vertragsstrafen/Pönalen → Begrenzung auf max. 5% der Auftragssumme + Verschuldensabhängigkeit
+- Back-to-Back Klauseln → Spezifische, transparente Verpflichtungen statt Generalübernahme
+- Bietergarantien/Erfüllungsgarantien → Ablehnung oder starke Einschränkung
+- Bauablaufstörungen → Sicherung von Ansprüchen bei Verzögerungen
+- ÖNORM B 2110 → Beibehaltung der Standardregelungen
+
+Formuliere einen EINZELNEN optimierten Klauseltext, der rechtssicher, präzise und für den Bauunternehmer möglichst vorteilhaft ist. Klarer Stil und juristische Präzision sind wichtig.
+
+Gib als Ergebnis NUR ein valides JSON-Array mit EINEM String zurück. Format: ["Optimierte Klausel"]`;
 
         const userPrompt = `Bitte optimiere die folgende Vertragsklausel für einen Bauunternehmer. Konzentriere dich auf Klarheit, Risikominimierung und Ausgewogenheit.
 
@@ -450,91 +684,54 @@ ${args.context ? `\nZusätzlicher Kontext:\n${args.context}` : ''}
 
 Gib das Ergebnis als JSON-Array mit einem einzigen String zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
 
+        let response: Response | undefined;
         try {
-            const requestBody: Gemini.RequestBody = {
+            console.log("Sending request to Gemini API for clause optimization...");
+            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                 contents: [
-                    { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
+                        {
+                            role: "user",
+                            parts: [{ text: systemPrompt }, { text: userPrompt }]
+                        }
                 ],
                 generationConfig: {
                     temperature: 0.3, // Niedrigere Temperatur für stabilere Ergebnisse
                     topP: 0.8,
                     topK: 40
                 }
-            };
-
-            console.log("Sending request to Gemini API for clause optimization...");
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+                })
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`Gemini API error during optimization: ${response.status} ${response.statusText}`, errorBody);
-                // Fallback-Antwort bei API-Fehler
-                return [args.clauseText]; // Gib den ursprünglichen Text zurück
+                console.error("Gemini API error during optimization:", response.status, errorBody);
+                throw new Error(`Gemini API error: ${response.status} ${errorBody}`);
             }
 
-            const responseData: Gemini.GenerateContentResponse = await response.json();
-            if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
-                 console.error("Gemini API response is not in the expected format during optimization", responseData);
-                 // Fallback-Antwort bei unerwartetem Format
-                 return [args.clauseText]; // Gib den ursprünglichen Text zurück
-            }
-
-            const geminiOutput = responseData.candidates[0].content.parts[0].text;
-            let cleanedOutput = geminiOutput.trim();
-
-            // JSON Bereinigung
-            if (cleanedOutput.startsWith("```json")) {
-                cleanedOutput = cleanedOutput.substring(7);
-                if (cleanedOutput.endsWith("```")) {
-                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
-                }
-            } else if (cleanedOutput.startsWith("```")) {
-                cleanedOutput = cleanedOutput.substring(3);
-                if (cleanedOutput.endsWith("```")) {
-                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
-                }
-            }
-            cleanedOutput = cleanedOutput.trim();
+            const responseData: any = await response.json();
+            console.log("Gemini API response for optimization:", JSON.stringify(responseData).substring(0, 300) + "...");
             
-            try {
-                // Versuche, das JSON zu parsen
-                const parsedJson = JSON.parse(cleanedOutput);
-                
-                if (Array.isArray(parsedJson) && parsedJson.length > 0 && typeof parsedJson[0] === 'string') {
-                    // Erfolgreicher Fall: Ein JSON-Array mit einem String als erstem Element
-                    console.log("Successfully parsed optimized clause from AI response");
-                    return [parsedJson[0]]; // Nur die erste Alternative zurückgeben
-                } else if (typeof parsedJson === 'string') {
-                    // Falls direkt ein String zurückgegeben wird
-                    return [parsedJson];
-                } else if (typeof parsedJson === 'object' && parsedJson !== null) {
-                    // Falls ein Objekt zurückgegeben wird, erste String-Eigenschaft verwenden
-                    const stringValue = Object.values(parsedJson).find(val => typeof val === 'string');
-                    if (stringValue) {
-                        return [stringValue];
-                    }
-                }
-                
-                // Wenn kein String gefunden wurde, ursprünglichen Text zurückgeben
-                return [args.clauseText];
-            } catch (parseError) {
-                // Wenn das JSON-Parsing fehlschlägt, versuche, den Text direkt zu verwenden
-                if (cleanedOutput && cleanedOutput.length > 0) {
-                    return [cleanedOutput]; // Rohen Text verwenden, wenn er nicht leer ist
-                }
-                
-                // Fallback bei allen anderen Fehlern
-                return [args.clauseText];
+            // Extrahiere den Text aus der Antwort
+            const optimizedText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (optimizedText) {
+                // Der Prompt erwartet nur einen String, also geben wir nur diesen zurück
+                // Da die Action aber ein Array von Strings erwartet (basierend auf altem Code?), wrappen wir es.
+                // TODO: Prüfen, ob das Frontend wirklich ein Array erwartet oder nur einen String.
+                // Wenn nur ein String, dann direkt `return optimizedText;`
+                return [optimizedText]; 
+            } else {
+                console.warn("Could not extract optimized text from Gemini response.", responseData);
+                return []; // Leeres Array bei fehlendem Text
             }
 
-        } catch (error) {
-            console.error(`Error optimizing clause with AI:`, error);
-            // Fallback-Antwort bei Fehlern
-            return [args.clauseText]; // Gib den ursprünglichen Text zurück
+        } catch (error: any) {
+            console.error("Error in optimizeClauseWithAI action:", error);
+            // Optional spezifischere Fehlermeldung zurückgeben
+            throw new Error(`Failed to optimize clause with AI: ${error.message}`);
         }
     },
 });
@@ -554,9 +751,23 @@ export const generateAlternativeFormulations = action({
         }
 
         // Angepasster Prompt für die Generierung von 3 Alternativen
-        const systemPrompt = `Du bist ein KI-Assistent, spezialisiert auf die Optimierung von Klauseln in deutschsprachigen Bauverträgen. Deine Aufgabe ist es, basierend auf einer gegebenen Klausel, GENAU DREI verbesserte Formulierungen vorzuschlagen, die fairer, klarer oder weniger riskant für einen Bauunternehmer sind. Die drei Alternativen sollen sich deutlich voneinander unterscheiden und unterschiedliche Aspekte adressieren.
-        
-        Gib als Ergebnis NUR ein valides JSON-Array mit GENAU DREI Strings zurück. Diese Strings sind die alternativen Formulierungen. Beispiel: ["Alternative 1", "Alternative 2", "Alternative 3"]`;
+        const systemPrompt = `Du bist ein spezialisierter Rechtsexperte für Bauverträge nach deutschem und österreichischem Recht (BGB, VOB, ÖNORM). Deine Aufgabe ist es, für problematische Vertragsklauseln GENAU DREI unterschiedliche alternative Formulierungen zu entwickeln.
+
+Die drei Alternativen sollten:
+1. Eine KONSERVATIVE Variante, die minimale Änderungen vornimmt, aber das Hauptrisiko beseitigt
+2. Eine AUSGEWOGENE Variante mit fairer Risikoverteilung zwischen den Parteien
+3. Eine OPTIMALE Variante, die die Position des Bauunternehmers maximal stärkt
+
+Fokussiere dich besonders auf folgende Problemklauseln:
+- Pay-When-Paid Klauseln → Zahlungsunabhängigkeit
+- Übertragung gewerblicher Schutzrechte → Nutzungsrechte
+- Vertragsstrafen/Pönalen → Begrenzung auf 5% + Verschuldensabhängigkeit
+- Back-to-Back Klauseln → Spezifische Verpflichtungen
+- Garantien (Bieter/Erfüllung) → Einschränkung/Ablehnung
+- Bauablaufstörungen → Anspruchssicherung
+- ÖNORM B 2110 → Beibehaltung vorteilhafter Standardregelungen
+
+Gib als Ergebnis NUR ein valides JSON-Array mit GENAU DREI Strings zurück. Format: ["Alternative 1", "Alternative 2", "Alternative 3"]`;
 
         const userPrompt = `Bitte generiere GENAU DREI alternative Formulierungen für die folgende Vertragsklausel. Jede Alternative sollte einen anderen Ansatz oder Schwerpunkt haben, aber alle sollten für einen Bauunternehmer vorteilhafter sein.
 
@@ -567,100 +778,370 @@ ${args.context ? `\nZusätzlicher Kontext:\n${args.context}` : ''}
 
 Gib das Ergebnis als JSON-Array mit GENAU DREI Strings zurück, wie im Systemprompt beschrieben. Beginne direkt mit '[' und ende mit ']'.`;
 
+        let response: Response | undefined;
         try {
-            const requestBody: Gemini.RequestBody = {
+            console.log("Sending request to Gemini API for alternative formulations...");
+            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                 contents: [
-                    { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
+                        {
+                            role: "user",
+                            parts: [{ text: systemPrompt }, { text: userPrompt }]
+                        }
                 ],
                 generationConfig: {
                     temperature: 0.7, // Höhere Temperatur für vielfältigere Ergebnisse
                     topP: 0.9,
                     topK: 40
                 }
-            };
-
-            console.log("Sending request to Gemini API for alternative formulations...");
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+                })
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error(`Gemini API error during alternative formulation generation: ${response.status} ${response.statusText}`, errorBody);
-                // Fallback-Antwort bei API-Fehler
-                return [args.clauseText, args.clauseText, args.clauseText]; // Gib den ursprünglichen Text dreimal zurück
+                console.error("Gemini API error during alternative formulation generation:", response.status, errorBody);
+                // Logge den Prompt bei Fehler
+                console.error("Prompt used:", `${systemPrompt}\n\n--- URSPRÜNGLICHE KLAUSEL (MARKDOWN) ---\n${args.clauseText}\n--- ENDE URSPRÜNGLICHE KLAUSEL ---`);
+                throw new Error(`Gemini API error: ${response.status} ${errorBody}`);
             }
 
-            const responseData: Gemini.GenerateContentResponse = await response.json();
-            if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content || !responseData.candidates[0].content.parts || !responseData.candidates[0].content.parts[0]) {
-                 console.error("Gemini API response is not in the expected format during alternative formulation generation", responseData);
-                 // Fallback-Antwort bei unerwartetem Format
-                 return [args.clauseText, args.clauseText, args.clauseText]; // Gib den ursprünglichen Text dreimal zurück
-            }
-
-            const geminiOutput = responseData.candidates[0].content.parts[0].text;
-            let cleanedOutput = geminiOutput.trim();
-
-            // JSON Bereinigung
-            if (cleanedOutput.startsWith("```json")) {
-                cleanedOutput = cleanedOutput.substring(7);
-                if (cleanedOutput.endsWith("```")) {
-                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
-                }
-            } else if (cleanedOutput.startsWith("```")) {
-                cleanedOutput = cleanedOutput.substring(3);
-                if (cleanedOutput.endsWith("```")) {
-                    cleanedOutput = cleanedOutput.substring(0, cleanedOutput.length - 3);
-                }
-            }
-            cleanedOutput = cleanedOutput.trim();
+            const responseData: any = await response.json();
+            console.log("Gemini API response for alternatives:", JSON.stringify(responseData).substring(0, 300) + "...");
             
-            try {
-                // Versuche, das JSON zu parsen
-                const parsedJson = JSON.parse(cleanedOutput);
-                
-                if (Array.isArray(parsedJson)) {
-                    // Stelle sicher, dass wir genau 3 Alternativen haben
-                    const alternatives = parsedJson.filter(item => typeof item === 'string');
-                    
-                    if (alternatives.length >= 3) {
-                        // Wähle die ersten 3 Alternativen
-                        return alternatives.slice(0, 3);
-                    } else if (alternatives.length > 0) {
-                        // Fülle mit Duplikaten auf, falls weniger als 3
-                        const result = [...alternatives];
-                        while (result.length < 3) {
-                            result.push(alternatives[0]);
-                        }
-                        return result;
+            // Extrahiere den JSON-Text aus der Antwort
+            const jsonText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (jsonText) {
+                try {
+                    // Parse den JSON-String, der das Array der Alternativen enthält
+                    const alternativesArray = JSON.parse(jsonText);
+                    if (Array.isArray(alternativesArray) && alternativesArray.every(item => typeof item === 'string')) {
+                        return alternativesArray as string[];
+                    } else {
+                        console.error("Parsed JSON from Gemini is not an array of strings:", alternativesArray);
+                        return []; // Leeres Array bei ungültigem Format
                     }
+                } catch (parseError: any) {
+                    console.error("Failed to parse JSON from Gemini response for alternatives:", parseError, "Raw JSON text:", jsonText);
+                    return []; // Leeres Array bei Parse-Fehler
                 }
-                
-                // Fallback, wenn keine gültigen Alternativen gefunden wurden
-                return [
-                    args.clauseText, 
-                    `Alternative Version von: ${args.clauseText}`, 
-                    `Verbesserte Version von: ${args.clauseText}`
-                ];
-            } catch (parseError) {
-                console.error("Error parsing JSON from AI response:", parseError);
-                // Fallback bei JSON-Parsing-Fehler
-                return [
-                    args.clauseText, 
-                    `Alternative Version von: ${args.clauseText}`, 
-                    `Verbesserte Version von: ${args.clauseText}`
-                ];
+            } else {
+                console.warn("Could not extract JSON text for alternatives from Gemini response.", responseData);
+                return []; // Leeres Array bei fehlendem Text
             }
-        } catch (error) {
-            console.error(`Error generating alternative formulations with AI:`, error);
-            // Fallback-Antwort bei Fehlern
-            return [
-                args.clauseText, 
-                `Alternative Version von: ${args.clauseText}`, 
-                `Verbesserte Version von: ${args.clauseText}`
-            ];
+
+        } catch (error: any) {
+            console.error("Error in generateAlternativeFormulations action:", error);
+            throw new Error(`Failed to generate alternative formulations: ${error.message}`);
         }
     },
-}); 
+});
+
+// Interne Helper-Funktion für die sequenzielle Analyse eines einzelnen Chunks
+async function _performSingleChunkAnalysis(
+    ctx: ActionCtx, // ActionCtx wird benötigt für runAction und runMutation
+    contractId: Id<"contracts">,
+    analysisChunk: StructuredElement[] // Sicherstellen, dass StructuredElement hier verfügbar/importiert ist oder den Typ explizit definieren
+): Promise<{ success: boolean }> {
+    const chunkIdentifier = analysisChunk.length > 0 ? analysisChunk[0].elementId : 'empty_chunk';
+    console.log(`Starting analysis for chunk starting with ${chunkIdentifier} for contract ${contractId}`);
+    let chunkAnalysisError = false;
+
+    for (const element of analysisChunk) {
+        // Nur relevante Elemente analysieren
+        if (element.elementType !== "clauseH3" && element.elementType !== "paragraph") {
+            continue;
+        }
+
+        console.log(`Analyzing element ${element.elementId} (${element.elementType})`);
+
+        try {
+            // 1. Embedding
+            const embedding = await ctx.runAction(internal.gemini.createEmbedding, {
+                text: element.markdownContent,
+            });
+
+            // 2. Vektorsuche
+            const KNOWLEDGE_LIMIT = 5;
+            const similarKnowledgeChunks = await ctx.runAction(internal.knowledgeQueries.findSimilarKnowledgeChunks, {
+                embedding: embedding,
+                limit: KNOWLEDGE_LIMIT,
+            });
+
+            // 3. Kontext formatieren
+            let retrievedKnowledgeContext = "Keine spezifischen Wissens-Chunks gefunden.";
+            if (similarKnowledgeChunks && similarKnowledgeChunks.length > 0) {
+                retrievedKnowledgeContext = similarKnowledgeChunks
+                    .map((chunk: Doc<"knowledgeChunks">, index: number) =>
+                        `--- Relevanter Wissens-Chunk ${index + 1} (Quelle: ${chunk.metadata.source || 'Unbekannt'}) ---\n${chunk.textContent}\n--- Ende Chunk ${index + 1} ---`
+                    )
+                    .join("\n\n");
+            }
+
+            // 4. System-Prompt
+            const systemPromptAgent2 = `Du bist ein spezialisierter KI-Assistent für die Prüfung von Bauverträgen. Bewerte die Klausel nach dem AMPELSYSTEM (Rot, Gelb, Grün, Info). Gib eine Begründung und Empfehlung. Deine Antwort MUSS ein JSON-Array sein, das EIN Objekt für die analysierte Klausel enthält: [{ "analyzedElementId": "...", "evaluation": "...", "reason": "...", "recommendation": "..." }]`;
+
+            // 5. User-Prompt
+            const userPromptAgent2 = `BEWERTE FOLGENDE VERTRAGSKLAUSEL:\n\n--- ZU ANALYSIERENDES VERTRAGSELEMENT (Markdown, ID: ${element.elementId}) ---\n${element.markdownContent}\n--- ENDE ZU ANALYSIERENDES VERTRAGSELEMENT ---\n\n--- RELEVANTE AUSZÜGE AUS DER WISSENSDATENBANK ---\n${retrievedKnowledgeContext}\n--- ENDE RELEVANTE AUSZÜGE ---\n\nGib deine Analyse als JSON-Array mit genau einem Objekt zurück.`;
+
+            // 6. Gemini Pro Aufruf
+            // WICHTIG: Die Retry-Logik sollte idealerweise in internal.gemini.generateAnalysisWithPro implementiert sein!
+            const analysisResultString = await ctx.runAction(internal.gemini.generateAnalysisWithPro, {
+                systemPrompt: systemPromptAgent2,
+                contextPrompt: userPromptAgent2,
+                modelName: "gemini-2.0-flash" // Standard: gemini-2.0-flash
+            });
+
+            console.log(`Raw analysis result string for element ${element.elementId}:`, analysisResultString);
+
+            // 7. JSON parsen
+            let parsedAnalysis = null;
+            try {
+                parsedAnalysis = JSON.parse(analysisResultString.trim());
+            } catch (parseError: any) {
+                console.error(`Failed to parse JSON response for element ${element.elementId}: ${parseError.message}. Raw response: ${analysisResultString.substring(0, 300)}...`);
+                chunkAnalysisError = true;
+                await ctx.runMutation(internal.contractMutations.mergeAnalysisResult, {
+                    contractId: contractId,
+                    elementId: element.elementId,
+                    evaluation: "Fehler",
+                    reason: "Ungültige JSON-Antwort von KI.",
+                    recommendation: "Element konnte nicht analysiert werden.",
+                    isError: true,
+                });
+                continue; // Nächstes Element im Chunk
+            }
+
+            // 8. Ergebnisse validieren und speichern
+            if (Array.isArray(parsedAnalysis) && parsedAnalysis.length > 0) {
+                const result = parsedAnalysis[0];
+                if (result && result.analyzedElementId === element.elementId && result.evaluation && result.reason && result.recommendation) {
+                    await ctx.runMutation(internal.contractMutations.mergeAnalysisResult, {
+                        contractId: contractId,
+                        elementId: element.elementId,
+                        evaluation: result.evaluation,
+                        reason: result.reason,
+                        recommendation: result.recommendation,
+                        isError: false,
+                    });
+                    console.log(`Successfully analyzed and saved element ${element.elementId}`);
+                } else {
+                    console.error(`Invalid analysis result format or mismatched ID for element ${element.elementId}:`, result);
+                    chunkAnalysisError = true;
+                    await ctx.runMutation(internal.contractMutations.mergeAnalysisResult, {
+                        contractId: contractId,
+                        elementId: element.elementId,
+                        evaluation: "Fehler",
+                        reason: "Ungültiges Analyseformat von KI.",
+                        recommendation: "Ergebnis konnte nicht verarbeitet werden.",
+                        isError: true,
+                    });
+                }
+            } else {
+                console.error(`Parsed JSON is not a valid array or is empty for element ${element.elementId}. Parsed:`, parsedAnalysis);
+                chunkAnalysisError = true;
+                await ctx.runMutation(internal.contractMutations.mergeAnalysisResult, {
+                    contractId: contractId,
+                    elementId: element.elementId,
+                    evaluation: "Fehler",
+                    reason: "Keine gültige Analyse im JSON-Format von KI erhalten.",
+                    recommendation: "Element konnte nicht analysiert werden.",
+                    isError: true,
+                });
+            }
+
+        } catch (error: any) {
+            console.error(`Error analyzing element ${element.elementId} in contract ${contractId}:`, error);
+            chunkAnalysisError = true;
+            try {
+                await ctx.runMutation(internal.contractMutations.mergeAnalysisResult, {
+                    contractId: contractId,
+                    elementId: element.elementId,
+                    evaluation: "Fehler",
+                    reason: `Analyse fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`, // Hauptfehler speichern
+                    recommendation: "Erneute Analyse könnte erforderlich sein.",
+                    isError: true,
+                });
+            } catch (mutationError: any) {
+                console.error(`Failed to save error status for element ${element.elementId}:`, mutationError);
+            }
+        }
+    } // Ende der Element-Schleife
+
+    console.log(`Finished analyzing chunk ${chunkIdentifier}. Chunk analysis error: ${chunkAnalysisError}`);
+    return { success: !chunkAnalysisError };
+}
+
+// NEU: Stufe 2 - Erstellt Analyse-Chunks aus Strukturelementen UND STARTET DIE SEQUENZIELLE ANALYSE
+export const createAnalysisChunksFromStructuredElements = internalAction({
+  args: {
+    contractId: v.id("contracts"),
+  },
+  handler: async (ctx, args) => {
+    console.log(`Starting Stufe 2: Creating analysis chunks for contract ${args.contractId}`);
+
+    // 1. Status auf "chunking" setzen (kurzzeitig)
+    await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+      contractId: args.contractId,
+      status: "chunking",
+    });
+
+    // 2. Strukturelemente abrufen
+    const contract = await ctx.runQuery(api.contractQueries.getContractById, { contractId: args.contractId });
+    if (!contract || !contract.structuredContractElements || contract.structuredContractElements.length === 0) {
+      console.warn(`No structured elements found for contract ${args.contractId} to create analysis chunks.`);
+      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+        contractId: args.contractId,
+        status: "completed", // Oder "failed" mit Grund?
+        totalChunks: 0,
+        errorDetails: "Keine Strukturelemente für Analyse gefunden."
+      });
+      return { message: "No structured elements found. Analysis chunking skipped." };
+    }
+    const structuredElements = contract.structuredContractElements as StructuredElement[];
+
+    // 3. Implementierung der Chunking-Logik
+    const MAX_ANALYSIS_CHUNK_SIZE_CHARS = 10000;
+    const analysisChunks: StructuredElement[][] = [];
+    let currentChunk: StructuredElement[] = [];
+    let currentChunkCharCount = 0;
+
+    for (const element of structuredElements) {
+      const elementCharCount = element.markdownContent.length;
+      if (elementCharCount > MAX_ANALYSIS_CHUNK_SIZE_CHARS) {
+        console.warn(`Element ${element.elementId} exceeds MAX_ANALYSIS_CHUNK_SIZE_CHARS and will be its own chunk.`);
+        if (currentChunk.length > 0) {
+          analysisChunks.push(currentChunk);
+        }
+        analysisChunks.push([element]);
+        currentChunk = [];
+        currentChunkCharCount = 0;
+        continue;
+      }
+      if (currentChunkCharCount + elementCharCount > MAX_ANALYSIS_CHUNK_SIZE_CHARS && currentChunk.length > 0) {
+        analysisChunks.push(currentChunk);
+        currentChunk = [element];
+        currentChunkCharCount = elementCharCount;
+      } else {
+        currentChunk.push(element);
+        currentChunkCharCount += elementCharCount;
+      }
+    }
+    if (currentChunk.length > 0) {
+      analysisChunks.push(currentChunk);
+    }
+
+    console.log(`Created ${analysisChunks.length} analysis chunks for contract ${args.contractId}.`);
+
+    // 4. SEQUENZIELLE Analyse starten
+    if (analysisChunks.length > 0) {
+      // Status auf "analysis_inprogress" setzen und Gesamtfortschritt initialisieren
+      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+        contractId: args.contractId,
+        status: "analysis_inprogress",
+        totalChunks: analysisChunks.length,
+      });
+
+      let overallSuccess = true;
+      let chunksProcessedCount = 0;
+
+      // Schleife für sequenzielle Verarbeitung
+      for (const chunk of analysisChunks) {
+        const chunkIdentifier = chunk.length > 0 ? chunk[0].elementId : 'empty_chunk';
+        console.log(`Sequentially processing chunk starting with ${chunkIdentifier} for contract ${args.contractId} (${chunksProcessedCount + 1}/${analysisChunks.length})`);
+        
+        // Rufe die interne Analyse-Logik auf
+        const result = await _performSingleChunkAnalysis(ctx, args.contractId, chunk);
+        
+        chunksProcessedCount++;
+        if (!result.success) {
+          overallSuccess = false;
+          // Logik, ob hier abgebrochen oder weitergemacht werden soll
+          console.warn(`Chunk analysis starting with ${chunkIdentifier} failed.`);
+        }
+
+        // Fortschritt nach jedem Chunk aktualisieren
+        await ctx.runMutation(internal.contractMutations.updateContractProcessingProgress, { 
+            contractId: args.contractId,
+            chunksProcessed: chunksProcessedCount,
+            currentStatus: "analysis_inprogress",
+        });
+      }
+
+      // Finale Statusaktualisierung nach Abschluss aller Chunks
+      const finalStatus = overallSuccess ? "completed" : "failed"; // Oder partieller Erfolg?
+      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+        contractId: args.contractId,
+        status: finalStatus,
+      });
+
+      console.log(`Sequential analysis finished for contract ${args.contractId}. Final status: ${finalStatus}. ${chunksProcessedCount}/${analysisChunks.length} chunks processed.`);
+      return { message: `Sequential analysis finished. ${chunksProcessedCount}/${analysisChunks.length} chunks processed. Overall success: ${overallSuccess}` };
+
+        } else {
+      // Fall: Keine Analyse-Chunks erstellt
+      await ctx.runMutation(internal.contractMutations.updateContractStatus, {
+        contractId: args.contractId,
+        status: "completed", // Oder anderer Status?
+        totalChunks: 0,
+      });
+      return { message: "Analysis chunking completed. No chunks created." };
+    }
+  },
+});
+
+/**
+ * INTERNAL ACTION: (Auskommentiert nach erfolgreicher Migration)
+ * Iterates through all contracts and calls a mutation to migrate ownerId to userId and clear ownerId.
+ * This was used for a one-time data migration.
+ */
+/*
+export const migrateOwnerIdsToUserIds = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    console.log("Starting migration: ownerId to userId...");
+    const allContracts = await ctx.runQuery(
+      internal.contractQueries.getAllContractsForMigration
+    );
+
+    let migratedCount = 0;
+    let checkedCount = 0;
+    let errorCount = 0;
+    let copiedToUserIdCount = 0;
+    let ownerIdClearedCount = 0;
+
+    for (const contract of allContracts) {
+      checkedCount++;
+      try {
+        // @ts-expect-error ownerId is removed from schema, this code is for completed migration
+        const hasOwnerId = contract.ownerId && contract.ownerId.trim() !== "";
+        // @ts-expect-error ownerId is removed from schema
+        const hasUserId = contract.userId && contract.userId.trim() !== "";
+
+        // Nur migrieren, wenn ownerId existiert und potenziell userId fehlt oder anders ist
+        // Oder wenn ownerId einfach nur geleert werden muss
+        if (hasOwnerId || contract.ownerId === "") { // auch leere ownerId-Strings behandeln
+          const result = await ctx.runMutation(
+            internal.contractMutations._migrateOwnerIdToUserIdAndClearOldField,
+            { contractId: contract._id }
+          );
+          migratedCount++;
+          if (result?.copiedToUserId) copiedToUserIdCount++;
+          if (result?.ownerIdCleared) ownerIdClearedCount++;
+        } else {
+          // console.log(`Contract ${contract._id} does not have an ownerId or it is not relevant for migration. Skipping.`);
+        }
+      } catch (e) {
+        console.error(`Error migrating contract ${contract._id}:`, e);
+        errorCount++;
+      }
+    }
+    const message = `Migration completed. Checked: ${checkedCount}, Processed (had ownerId or empty ownerId): ${migratedCount}, Copied to userId: ${copiedToUserIdCount}, OwnerId cleared: ${ownerIdClearedCount}, Errors: ${errorCount}`;
+    console.log(message);
+    return { message, checkedCount, migratedCount, copiedToUserIdCount, ownerIdClearedCount, errorCount };
+  },
+});
+*/
+// ... existing code ... 

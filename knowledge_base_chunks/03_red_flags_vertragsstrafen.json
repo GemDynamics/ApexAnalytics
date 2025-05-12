@@ -1,0 +1,10 @@
+{
+  "id": "rule_red_flag_003",
+  "textContent": "Vertragsstrafen ohne Begrenzung sind nicht akzeptabel. Vertragsstrafen sollten auf maximal 5% der Auftragssumme begrenzt sein. In Ausnahmefällen kann eine Erhöhung auf 10% mit Vorstandsfreiheit erfolgen. Eine klare Begrenzung der Vertragsstrafe muss im Vertrag vorhanden sein. Unbegrenzte Vertragsstrafen sind kritisch zu bewerten und abzulehnen.",
+  "metadata": {
+    "source": "Regeln für die Analyse.md",
+    "type": "Unzulässige Klausel",
+    "keywords": ["Vertragsstrafe", "Pönale", "Begrenzung", "Auftragssumme", "kritische Klausel"],
+    "last_updated": "2024-07-15"
+  }
+} 
