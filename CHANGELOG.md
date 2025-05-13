@@ -205,4 +205,33 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 *   Das Verzeichnis `/archiv` im Workspace-Root wurde erstellt.
 *   Die Dateien `knowledge_base/analysis_rules.json` und `knowledge_base/schema.json` wurden in das Verzeichnis `/archiv` verschoben.
 *   Das Verzeichnis `knowledge_base/` wurde gelöscht.
-*   **Empfehlung:** Sicherstellen, dass alle zukünftigen Entwicklungen (insbesondere Stufe 3: `analyzeContractChunkWithStructureAndVectorKB`) den korrekten Tabellennamen (`knowledgeChunks`) und Indexnamen (`embedding`) verwenden. 
+*   **Empfehlung:** Sicherstellen, dass alle zukünftigen Entwicklungen (insbesondere Stufe 3: `analyzeContractChunkWithStructureAndVectorKB`) den korrekten Tabellennamen (`knowledgeChunks`) und Indexnamen (`embedding`) verwenden.
+
+## JJJJ-MM-TT (oder Version)
+
+### Geändert
+- **Umfassende Überarbeitung des Vertragsanalyse-Prozesses:** Implementierung einer neuen dreistufigen Architektur zur Verbesserung der Strukturerkennung, Robustheit und Analysequalität:
+    - **Stufe 1 (Gemini 2.5 Pro):** Identifiziert globale Hauptabschnitte und teilt den Vertrag in große, logische Chunks auf. Ergebnisse werden im neuen Schemafeld `largeChunks` gespeichert.
+    - **Stufe 2 (Gemini 2.5 Pro):** Erstellt parallel pro großem Chunk eine detaillierte, hierarchische JSON-Struktur (`structuredContractElements`), wobei die Zugehörigkeit zum großen Chunk (`globalChunkNumber`) vermerkt wird.
+    - **Stufe 3 (Gemini 2.5 Flash):** Führt parallel für jedes einzelne Strukturelement die Risiko- und Empfehlungsanalyse (Rot/Gelb/Grün) durch, unter Nutzung von Kontext aus der Vektor-Datenbank. Ergebnisse werden direkt im jeweiligen Element gespeichert.
+- **Schema (`convex/schema.ts`):**
+    - Neue Status-Literale für die drei Verarbeitungsstufen und deren Fehlerzustände hinzugefügt (z.B. `stage1_chunking_inprogress`, `stage2_structuring_failed`, etc.).
+    - Neues Feld `largeChunks` (Array von Objekten) hinzugefügt.
+    - Feld `globalChunkNumber` zur Definition von `structuredContractElements` hinzugefügt.
+    - Neue Felder zur Fortschrittsverfolgung hinzugefügt: `totalLargeChunks`, `structuredLargeChunks`, `totalElementsToAnalyze`, `analyzedElements`.
+- **Actions (`convex/contractActions.ts`, `convex/gemini.ts`):
+    - Neue interne Actions für die einzelnen Stufen erstellt: `runStage1Chunking`, `runStage2Structuring`.
+    - Bestehende Action zur Elementanalyse (`generateAnalysisWithPro`) angepasst für Stufe 3 (Nutzung von Gemini Flash).
+    - Neue interne Actions zur Orchestrierung der Stufen 2 und 3 hinzugefügt: `startStage2Structuring`, `startStage3Analysis`.
+    - Action `startFullContractAnalysis` überarbeitet, um Stufe 1 zu starten.
+- **Mutations (`convex/contractMutations.ts`):
+    - Neue interne Mutationen zur Speicherung der Ergebnisse und des Fortschritts der Stufen 1 und 2 hinzugefügt: `saveLargeChunks`, `saveStructuredChunk` (oder ähnlich).
+    - Mutation `mergeAnalysisResult` (oder ähnlich) angepasst/verwendet, um die Ergebnisse der Elementanalyse aus Stufe 3 zu speichern.
+    - Mutation `updateContractStatus` für allgemeine Statusänderungen und Initialisierung der Fortschrittszähler verwendet.
+
+### Entfernt
+- Alte Logik zur Erstellung kleiner Analyse-Chunks (`createAnalysisChunksFromStructuredElements`) entfernt.
+- Veraltete Status-Literale und Fortschrittsfelder (`totalChunks`, `processedChunks`), die sich auf die alte Chunking-Logik bezogen, entfernt bzw. ersetzt.
+- Veraltetes Feld `analysisProtocol` aus der Vertragsdatenstruktur entfernt (war nicht mehr im Schema definiert und wurde durch `structuredContractElements` abgelöst).
+
+--- 

@@ -74,6 +74,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   const [isClient, setIsClient] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [isExportingDocx, setIsExportingDocx] = useState(false)
+  const [detailFormulationInput, setDetailFormulationInput] = useState<string>("")
 
   const { contract, isLoading } = useContract(contractId);
   const updateAnalysisMutation = useMutation(api.contractMutations.updateContractAnalysis);
@@ -151,7 +152,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
             // Titel-Extraktion aus Markdown
             let title = `Element ${element.globalOriginalOrder + 1}`;
-            const markdownLines = element.markdownContent?.split('\\n') || [];
+            const markdownLines = element.markdownContent?.split('\n') || [];
             const firstLine = markdownLines[0]?.trim() || "";
 
             if (firstLine.startsWith("# ")) {
@@ -191,88 +192,36 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
           });
       }
       // Fallback auf editedAnalysis (vom Benutzer gespeicherte Änderungen)
-      // ACHTUNG: editedAnalysis muss ggf. auch das elementType Feld enthalten oder wir müssen es hier raten
       else if (contract.editedAnalysis && contract.editedAnalysis.length > 0) {
         sourceUsed = "editedAnalysis";
         console.log(`Lade Daten aus ${sourceUsed} (Fallback)`);
-        // Annahme: editedAnalysis hat bereits das EditorSection Format
-        // Füge ggf. fehlendes elementType hinzu
-        initialSections = contract.editedAnalysis.map((section: EditorSection) => ({
+        initialSections = contract.editedAnalysis.map((section: any) => ({ // Use any temporarily if type mismatch
           ...section,
-          elementType: section.elementType || 'unknown' // Füge Fallback für elementType hinzu
+          elementType: section.elementType || 'unknown' 
         }));
       }
-      // Fallback auf analysisProtocol (alte Struktur), falls nichts anderes vorhanden
-      else if (contract.analysisProtocol && contract.analysisProtocol.length > 0) {
-        sourceUsed = "analysisProtocol";
-        console.log(`Lade Daten aus ${sourceUsed} (Fallback - ALTE STRUKTUR)`);
-        initialSections = contract.analysisProtocol.map((clause, index) => {
-            // Bestehende Transformationslogik für analysisProtocol...
-            let riskLevel: EditorSection["risk"] = "low";
-            let needsRenegotiation = false;
-            let urgentAttention = false;
-            switch (clause.evaluation?.toLowerCase()) {
-              case "rot": riskLevel = "high"; needsRenegotiation = true; urgentAttention = true; break;
-              case "gelb": riskLevel = "medium"; needsRenegotiation = true; break;
-              case "grün": riskLevel = "low"; break;
-              case "fehler": riskLevel = "error"; needsRenegotiation = true; urgentAttention = true; break;
-              default: // Fallback für null/undefined/unbekannt
-                  if (clause.reason || clause.recommendation) {
-                       riskLevel = "medium"; needsRenegotiation = true; 
-                  } else {
-                      riskLevel = "low";
-                  }
-                  break;
-            }
+      // --- Fallback für analysisProtocol entfernt --- 
 
-            let title = `Klausel ${index + 1}`;
-            // Titel-Extraktion (wie vorher, nur sicherstellen, dass clauseText existiert)
-             const firstLine = (clause.clauseText || "").split('\\n')[0]?.trim();
-             if (firstLine.startsWith("# ")) title = firstLine.substring(2).trim();
-             else if (firstLine.startsWith("## ")) title = firstLine.substring(3).trim();
-             else if (firstLine.startsWith("### ")) title = firstLine.substring(4).trim();
-             else title = firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine;
-             if (!title.trim()) title = `Klausel ${index + 1}`;
-
-
-            return {
-              id: `clause-${clause.chunkNumber || '0'}-${index}`, // ID-Generierung wie zuvor
-              title: title,
-              content: clause.clauseText || "", // Sicherstellen, dass content ein String ist
-              risk: riskLevel,
-              evaluation: clause.evaluation || "N/A",
-              reason: clause.reason || "",
-              recommendation: clause.recommendation || "",
-              needsRenegotiation: needsRenegotiation,
-              urgentAttention: urgentAttention,
-          alternativeFormulations: [],
-          chunkNumber: clause.chunkNumber,
-              elementType: 'clauseH3', // Annahme: Altes Protokoll waren nur Klauseln
-              removed: false,
-        };
-      });
-      }
-      // Wenn gar keine Daten vorhanden
-      else {
-        console.log("Keine Analysedaten (structured, edited, protocol) gefunden.");
-        initialSections = [];
-      }
-
-      // Initialisiere die History nur, wenn sich die Datenquelle oder die Anzahl der Sektionen geändert hat
-      // Oder wenn die History leer ist
-      if (
-        history.length === 1 && history[0].sections.length === 0 || // Wenn History leer ist
-        JSON.stringify(history[historyIndex].sections) !== JSON.stringify(initialSections) // Wenn sich Daten geändert haben
-      ) {
-          console.log(`Initialisiere History mit Daten aus: ${sourceUsed || 'Nichts'}`);
+      // Initialisiere den Verlauf mit den geladenen Sektionen
+      if (initialSections.length > 0 || sourceUsed) { // Nur updaten, wenn wirklich Daten geladen wurden
+          console.log(`Initialisiere History mit ${initialSections.length} Sektionen aus ${sourceUsed || 'leerer Quelle'}`);
           setHistory([{ sections: initialSections }]);
-      setHistoryIndex(0);
-          // Setze auch aktive/kollabierte/Details zurück
-          setActiveSectionId(null);
-          setCollapsedSections(new Set());
-          setDetailsVisible(new Set());
+          setHistoryIndex(0);
+          // Setze initial activeSectionId auf die erste Sektion, falls vorhanden
+          if (initialSections.length > 0 && !activeSectionId) {
+               setActiveSectionId(initialSections[0].id);
+          }
+      } else if (!isLoading) { // Wenn keine Daten geladen wurden und nicht mehr geladen wird
+          console.log("Keine initialen Sektionen gefunden (weder structured noch edited).");
+           // Optional: Setze History zurück, falls sie noch alte Daten enthält?
+           // setHistory([{ sections: [] }]);
+           // setHistoryIndex(0);
       }
-    
+      
+      // Dateinamen initialisieren
+      if (contract.fileName) {
+           setEditedFileName(stripFileExtension(contract.fileName));
+      }
     } else if (!isLoading && !contract) {
       // Fall: Contract ID ungültig oder nicht gefunden
       console.log("Vertrag nicht gefunden oder Ladefehler.");
@@ -280,7 +229,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
         setHistoryIndex(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contract, isLoading]);
+  }, [contract, isLoading, contractId]);
 
   const addNewSection = () => {
     console.warn("addNewSection: Diese Funktion muss überarbeitet werden, um mit dynamischen Vertragsdaten zu arbeiten.")
@@ -478,10 +427,16 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   };
 
   const handleOptimizeWithAI = async (sectionId: string, textToOptimize?: string) => {
+    // NEU: Logge die Eingabeparameter
+    console.log(`[handleOptimizeWithAI] Called for section ${sectionId}. textToOptimize:`, textToOptimize, `(Type: ${typeof textToOptimize})`);
+
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
 
     const isManualOptimization = typeof textToOptimize === 'string';
+    // NEU: Logge das Ergebnis der Prüfung
+    console.log(`[handleOptimizeWithAI] isManualOptimization: ${isManualOptimization}`);
+
     const currentContent: string = section.content || ''; 
     const contentToUse: string = isManualOptimization ? (textToOptimize || '') : currentContent;
     const textForAction: string = contentToUse;
@@ -511,45 +466,53 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                  console.error("optimizeClauseAction hat ein unerwartetes Format zurückgegeben:", optimizeResult);
             }
 
-            if (optimizedText !== null) {
-                const textarea = document.getElementById(`custom-formulation-${sectionId}`) as HTMLTextAreaElement;
-                if (textarea) {
-                    textarea.value = optimizedText; // Jetzt sicher ein String oder null
-                    toast.success("Text wurde optimiert. Klicke auf 'Übernehmen', um ihn zu speichern.");
-                } else {
-                    toast.error("Fehler: Konnte das Eingabefeld nicht finden.");
-                }
+            if (optimizedText !== null) { 
+                // KORREKTUR: Aktualisiere den React State statt direkter DOM Manipulation
+                setDetailFormulationInput(optimizedText); 
+                toast.success("Text wurde optimiert. Klicken Sie auf 'Formulierung übernehmen', um die Änderung zu speichern.");
             } else {
                 toast.info("KI konnte diesen Text nicht optimieren oder gab ein unerwartetes Ergebnis zurück.");
             }
         } else {
             // Fall 2: Generate Alternatives
+            console.log(`[Client] Vor Aufruf generateAlternativesAction für sectionId: ${sectionId}, textForAction: "${textForAction.substring(0,50)}..."`); 
             const alternatives = await generateAlternativesAction({ clauseText: textForAction });
-            console.log("Received alternative formulations:", alternatives);
-            if (alternatives && Array.isArray(alternatives) && alternatives.length > 0) { // Zusätzliche Prüfung auf Array
+            console.log(`[Client] Nach Aufruf generateAlternativesAction für sectionId: ${sectionId}. Alternatives Roh-Ergebnis:`, alternatives); 
+            console.log("Received alternative formulations:", alternatives); 
+
+            if (alternatives && Array.isArray(alternatives) && alternatives.length > 0) { 
                 toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
-            const newSections = sections.map(s => {
-                if (s.id === sectionId) {
-                    return {
-                        ...s,
+                const newSections = sections.map(s => {
+                    if (s.id === sectionId) {
+                        return {
+                            ...s,
                             alternativeFormulations: alternatives.map((altText, index) => ({ 
                                 id: `ai-alt-${sectionId}-${index}-${Date.now()}`,
                                 content: altText 
                             }))
-                    };
-                }
-                return s;
-            });
-            updateSectionsAndHistory(newSections);
-        } else {
+                        };
+                    }
+                    return s;
+                });
+                updateSectionsAndHistory(newSections);
+            } else {
                 toast.info("KI konnte keine Alternativen für diesen Text generieren.");
                  const newSections = sections.map(s => s.id === sectionId ? { ...s, alternativeFormulations: [] } : s);
                  updateSectionsAndHistory(newSections);
+            }
         }
-        }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Fehler bei der KI-Aktion:", error);
         toast.error("Fehler bei der KI-Aktion.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+        // NEU: Wenn Alternativen generiert werden sollten (d.h. nicht isManualOptimization) und ein Fehler auftrat,
+        // setze die alternativeFormulations für die betroffene Sektion explizit auf ein leeres Array,
+        // um dem Benutzer Feedback zu geben und einen inkonsistenten Ladezustand zu vermeiden.
+        if (!isManualOptimization) { 
+            const newSections = sections.map(s => 
+                s.id === sectionId ? { ...s, alternativeFormulations: [] } : s
+            );
+            updateSectionsAndHistory(newSections);
+        }
     } finally {
         setOptimizingSectionId(null); 
     }
@@ -579,8 +542,13 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     
     console.log(`Toggling details for section ${sectionId}. Currently visible: ${detailsVisible.has(sectionId)}`);
     
+    const section = sections.find(s => s.id === sectionId);
+
     if (activeSectionId !== sectionId) {
       setActiveSectionId(sectionId);
+      if (section) {
+        setDetailFormulationInput(section.content || ""); // Initialisiere mit Sektionsinhalt
+      }
     }
     
     setDetailsVisible(prev => {
@@ -589,14 +557,16 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
         newSet.delete(sectionId);
       } else {
         newSet.add(sectionId);
-         // Optional: Generiere Alternativen nur beim ersten Öffnen der Details
-        const section = sections.find(s => s.id === sectionId);
-        if (section && 
-            (section.risk === "medium" || section.risk === "high") &&
-            (!section.alternativeFormulations || section.alternativeFormulations.length === 0) &&
-             optimizingSectionId !== sectionId) {
-            console.log(`Triggering AI alternatives on detail open for section ${sectionId}`);
-            handleOptimizeWithAI(sectionId); 
+        if (section) {
+            setDetailFormulationInput(section.content || ""); // Initialisiere beim Öffnen
+             // Optional: Generiere Alternativen nur beim ersten Öffnen der Details
+            if ( 
+                (section.risk === "medium" || section.risk === "high") &&
+                (!section.alternativeFormulations || section.alternativeFormulations.length === 0) &&
+                 optimizingSectionId !== sectionId) {
+                console.log(`Triggering AI alternatives on detail open for section ${sectionId}`);
+                handleOptimizeWithAI(sectionId); 
+            }
         }
       }
       return newSet;
@@ -769,21 +739,48 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
   if (!contract || (history.length === 1 && history[0].sections.length === 0 && !isLoading) ) {
      // Zeige "Keine Daten" nur an, wenn nicht mehr geladen wird und wirklich keine Sektionen da sind
-    return (
-        <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
-            <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Keine analysierten Daten</h3>
-            <p className="text-muted-foreground max-w-md">
-                Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse läuft noch bzw. ist fehlgeschlagen. Bitte überprüfen Sie den Status oder laden Sie den Vertrag neu hoch.
-            </p>
-            {contract && (
-                <div className="text-sm text-muted-foreground mt-2">Status: <Badge variant={contract.status === 'failed' ? 'destructive' : 'secondary'}>{contract.status}</Badge></div>
-            )}
-            {!contract && !isLoading && (
-                 <p className="text-sm text-destructive mt-2">Vertrag mit ID {contractId} konnte nicht geladen werden.</p>
-            )}
-        </div>
-    );
+    // Oder wenn der Status ein Fehlerstatus ist
+    const isErrorStatus = contract && [
+        "failed", 
+        "stage1_chunking_failed", 
+        "stage2_structuring_failed", 
+        "failed_partial_analysis"
+    ].includes(contract?.status || '');
+    
+    const showNoDataMessage = (!contract && !isLoading) || (contract && history.length === 1 && history[0].sections.length === 0) || isErrorStatus;
+
+    if (showNoDataMessage) {
+        let title = "Keine analysierten Daten";
+        let message = "Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse läuft noch bzw. ist fehlgeschlagen. Bitte überprüfen Sie den Status oder laden Sie den Vertrag neu hoch.";
+        let badgeVariant: "destructive" | "secondary" | "outline" = "secondary";
+
+        if (!contract && !isLoading) {
+             title = "Fehler beim Laden";
+             message = `Der Vertrag mit der ID ${contractId} konnte nicht geladen werden.`;
+             badgeVariant = "destructive";
+        } else if (isErrorStatus) {
+             title = "Analyse fehlgeschlagen";
+             message = contract.errorDetails || "Bei der Analyse des Vertrags ist ein Fehler aufgetreten. Bitte überprüfen Sie die Details oder versuchen Sie es erneut.";
+             badgeVariant = "destructive";
+        } // Sonst bleibt die Standardmeldung für "Keine Daten"
+
+        return (
+            <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
+                <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
+                <h3 className="text-xl font-semibold mb-2">{title}</h3>
+                <p className="text-muted-foreground max-w-md">
+                    {message}
+                </p>
+                {contract && (
+                    // Verwende badgeVariant und contract.status
+                    <div className="text-sm text-muted-foreground mt-2">Status: <Badge variant={badgeVariant}>{contract.status}</Badge></div>
+                )}
+                {!contract && !isLoading && (
+                     <p className="text-sm text-destructive mt-2">Vertrag mit ID {contractId} konnte nicht geladen werden.</p>
+                )}
+            </div>
+        );
+    }
   }
 
   return (
@@ -963,6 +960,58 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                             Für diese Klausel wurden von der KI keine Alternativen vorgeschlagen oder sie konnten nicht generiert werden. Sie können unten eine eigene Formulierung eingeben.
                         </div>
                       )}
+                          {/* --- NEUE ELEMENTE START --- */}
+                          <div className="mt-6 space-y-3 pt-4 border-t dark:border-gray-700">
+                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Eigene Formulierung eingeben oder bearbeiten:</h4>
+                            <Textarea
+                              value={detailFormulationInput}
+                              onChange={(e) => setDetailFormulationInput(e.target.value)}
+                              placeholder="Geben Sie hier Ihre benutzerdefinierte Formulierung ein oder bearbeiten Sie den aktuellen Text..."
+                              className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                            <div className="flex flex-col sm:flex-row justify-end gap-2 mt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!detailFormulationInput.trim()) {
+                                        toast.info("Das Eingabefeld ist leer. Es gibt nichts zu optimieren.");
+                                        return;
+                                    }
+                                    handleOptimizeWithAI(section.id, detailFormulationInput);
+                                }}
+                                disabled={optimizingSectionId === section.id || !detailFormulationInput.trim()}
+                                className="gap-1"
+                              >
+                                {optimizingSectionId === section.id && section.id === activeSectionId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 3.05-9.16A2 2 0 0 1 7.98 10.5H10.5a2 2 0 0 1 1.83 1.26L15 21M21 3l-9.16 3.05a2 2 0 0 1-1.34.24L9 6.05M14.5 6.5l3 3M6.5 14.5l3 3"/></svg>
+                                )}
+                                <span>{optimizingSectionId === section.id && section.id === activeSectionId ? "Optimiere..." : "Mit KI optimieren"}</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!detailFormulationInput.trim()) {
+                                        toast.info("Das Eingabefeld ist leer. Es gibt nichts zu übernehmen.");
+                                        return;
+                                    }
+                                    handleCustomFormulationSubmit(section.id, detailFormulationInput);
+                                    // Optional: Detailkarte schließen nach Übernahme
+                                    // toggleDetailsVisibility(section.id); 
+                                }}
+                                className="gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                                disabled={!detailFormulationInput.trim()}
+                              >
+                                <Send className="h-4 w-4" />
+                                Formulierung übernehmen
+                              </Button>
+                            </div>
+                          </div>
+                          {/* --- NEUE ELEMENTE ENDE --- */}
                             </>
                         ) : null}
                     </CardContent>

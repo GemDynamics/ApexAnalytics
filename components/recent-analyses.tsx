@@ -25,37 +25,53 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Doc } from "@/convex/_generated/dataModel"
 
+type ContractStatusType = Doc<"contracts">["status"];
+
 export function RecentAnalyses() {
   const { contracts, isLoading } = useContracts();
 
-  const getStatusVariant = (status: Doc<"contracts">["status"]) => {
+  const getStatusVariant = (status: ContractStatusType): "secondary" | "destructive" | "outline" | "default" => {
     switch (status) {
       case "completed":
         return "default";
-      case "processing":
-      case "chunking":
+      case "stage1_chunking_inprogress":
+      case "stage2_structuring_inprogress":
+      case "stage3_analysis_inprogress":
+      case "preprocessing_structure":
         return "secondary";
       case "failed":
+      case "stage1_chunking_failed":
+      case "stage2_structuring_failed":
+      case "failed_partial_analysis":
         return "destructive";
       case "pending":
+      case "archived":
       default:
+        const knownStatus: ContractStatusType | undefined = status;
+        if (knownStatus === undefined) return "outline";
         return "outline";
     }
   };
 
-  const getStatusText = (status: Doc<"contracts">["status"]) => {
+  const getStatusText = (status: ContractStatusType) => {
     switch (status) {
       case "pending": return "Warten";
-      case "processing": return "In Bearbeitung";
-      case "chunking": return "Vorbereitung";
+      case "preprocessing_structure": return "Verarbeite";
+      case "stage1_chunking_inprogress": return "Stufe 1...";
+      case "stage2_structuring_inprogress": return "Stufe 2...";
+      case "stage3_analysis_inprogress": return "Stufe 3...";
       case "completed": return "Abgeschlossen";
-      case "failed": return "Fehlgeschlagen";
+      case "failed": return "Fehler";
+      case "stage1_chunking_failed": return "Fehler Stufe 1";
+      case "stage2_structuring_failed": return "Fehler Stufe 2";
+      case "failed_partial_analysis": return "Fehler Stufe 3";
+      case "archived": return "Archiviert";
       default: return "Unbekannt";
     }
   };
   
   const recentContracts = contracts
-    ?.sort((a, b) => b.uploadedAt - a.uploadedAt)
+    ?.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))
     .slice(0, 5);
 
   const getRiskIcon = (riskLevel: string) => {
@@ -90,63 +106,71 @@ export function RecentAnalyses() {
     return "bg-green-500"
   }
 
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Letzte Analysen</CardTitle>
+          <CardDescription>Die 5 zuletzt hochgeladenen Verträge.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-[60px] w-full rounded-lg" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Letzte Analysen</CardTitle>
-        <CardDescription>Ihre zuletzt hochgeladenen und analysierten Verträge.</CardDescription>
-          </CardHeader>
+        <CardDescription>Die 5 zuletzt hochgeladenen Verträge.</CardDescription>
+      </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px]">
-          {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full" />
-                    <div className="space-y-1">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-24" />
-                  </div>
-                  </div>
-                  <Skeleton className="h-5 w-20" />
-                </div>
-              ))}
-                </div>
-          ) : recentContracts && recentContracts.length > 0 ? (
-                <div className="space-y-3">
+          {recentContracts && recentContracts.length > 0 ? (
+            <div className="space-y-3 pr-4">
               {recentContracts.map((contract) => (
                 <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                        <p className="font-medium truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
-                          {contract.fileName}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">
+                          {contract.fileName || 'Unbenannter Vertrag'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+                          Hochgeladen: {contract.uploadedAt ? new Date(contract.uploadedAt).toLocaleDateString('de-DE') : '-'}
                         </p>
                       </div>
                     </div>
                     <Badge 
                       variant={getStatusVariant(contract.status)}
-                      className={contract.status === 'completed' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
+                      className={`${contract.status === 'completed' ? 'bg-green-500 text-white hover:bg-green-600' : ''} flex-shrink-0 ml-2`}
                     >
-                      {contract.status === 'processing' || contract.status === 'chunking' ? (
+                      {(
+                        contract.status === 'preprocessing_structure' ||
+                        contract.status === 'stage1_chunking_inprogress' ||
+                        contract.status === 'stage2_structuring_inprogress' ||
+                        contract.status === 'stage3_analysis_inprogress'
+                      ) ? (
                         <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                       ) : null}
                       {getStatusText(contract.status)}
                     </Badge>
                   </div>
                 </Link>
-                      ))}
+              ))}
             </div>
           ) : (
             <p className="text-center text-muted-foreground py-8">Noch keine Analysen vorhanden.</p>
           )}
         </ScrollArea>
-          </CardContent>
-        </Card>
+      </CardContent>
+    </Card>
   )
 }

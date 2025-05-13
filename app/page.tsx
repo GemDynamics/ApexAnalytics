@@ -11,20 +11,31 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import type { Doc } from "@/convex/_generated/dataModel"
+
+// Typ direkt aus Doc verwenden
+type ContractStatusType = Doc<"contracts">["status"];
 
 // Komponente für einzelne Vertrags-Items
-function ContractItem({ contract }: { contract: any }) {
-  const getStatusBadge = (status: string) => {
+function ContractItem({ contract }: { contract: Doc<"contracts"> }) {
+  const getStatusBadge = (status: ContractStatusType) => {
     switch (status) {
       case "completed":
         return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">Abgeschlossen</Badge>
-      case "processing":
-      case "chunking":
+      case "preprocessing_structure":
+      case "stage1_chunking_inprogress":
+      case "stage2_structuring_inprogress":
+      case "stage3_analysis_inprogress":
         return <Badge variant="secondary" className="animate-pulse">In Bearbeitung</Badge>
       case "pending":
         return <Badge variant="outline">Ausstehend</Badge>
       case "failed":
+      case "stage1_chunking_failed":
+      case "stage2_structuring_failed":
+      case "failed_partial_analysis":
         return <Badge variant="destructive">Fehlgeschlagen</Badge>
+      case "archived":
+        return <Badge variant="outline">Archiviert</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -36,9 +47,9 @@ function ContractItem({ contract }: { contract: any }) {
         <div className="flex items-center gap-3 min-w-0">
           <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate" title={contract.fileName}>{contract.fileName}</p>
+            <p className="text-sm font-medium truncate" title={contract.fileName}>{contract.fileName || 'Unbenannter Vertrag'}</p>
             <p className="text-xs text-muted-foreground">
-              Hochgeladen: {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
+              Hochgeladen: {contract.uploadedAt ? new Date(contract.uploadedAt).toLocaleDateString('de-DE') : 'Unbekannt'}
             </p>
           </div>
         </div>

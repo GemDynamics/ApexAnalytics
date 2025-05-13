@@ -6,45 +6,18 @@ import { AlertTriangle, CheckCircle, AlertCircle, ChevronDown } from "lucide-rea
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { Doc } from "@/convex/_generated/dataModel"
 
-// Typdefinition angepasst an structuredContractElements
-type StructuredElementFromContract = NonNullable<Doc<"contracts">["structuredContractElements"]>[number];
-
-// Erweitern oder Anpassen des Props-Typs, um die benötigten Felder zu haben
-// (Wir nehmen hier an, dass die benötigten Felder in StructuredElementFromContract enthalten sind,
-// oder definieren einen spezifischeren Typ, falls nötig)
-interface ContractClauseProps {
-  // Verwende einen allgemeineren Typ oder den spezifischen Typ aus dem Vertrag
-  elementType: string;
-  evaluation?: string; 
-  reason?: string; 
-  recommendation?: string;
-  markdownContent: string;
-  // Füge optional Felder hinzu, die für die Anzeige benötigt werden, z.B. chunkNumber oder elementId
-  elementId: string; 
-  globalChunkNumber?: number; // Falls vorhanden und benötigt
-}
+// Typdefinition für eine einzelne Klausel aus dem analysisProtocol
+type AnalysisClause = NonNullable<Doc<"contracts">["analysisProtocol"]>[number];
 
 interface ContractClausesProps {
-  // Ändere den Typ von clauses zu einem Array des neuen Typs
-  // Hier verwenden wir einen generischen Typ, der die benötigten Felder enthält.
-  // Im aufrufenden Code muss sichergestellt werden, dass die übergebenen Objekte diese Felder haben.
-  clauses: Array<{ 
-    elementId: string;
-    evaluation: string; 
-    reason: string; 
-    recommendation: string;
-    markdownContent: string;
-    elementType: string;
-    globalChunkNumber?: number; // Optional
-  }>;
+  clauses: AnalysisClause[];
 }
 
 export function ContractClauses({ clauses = [] }: ContractClausesProps) {
   const [openClauseId, setOpenClauseId] = useState<string | null>(null);
 
   // Hilfsfunktionen für Risikobewertung (adaptiert)
-  const getRiskIcon = (evaluation?: string) => {
-    if (!evaluation) return <AlertCircle className="h-5 w-5 text-gray-500" />;
+  const getRiskIcon = (evaluation: string) => {
     switch (evaluation.toLowerCase()) {
       case "rot":
         return <AlertTriangle className="h-5 w-5 text-red-500" />;
@@ -57,8 +30,7 @@ export function ContractClauses({ clauses = [] }: ContractClausesProps) {
     }
   };
 
-  const getRiskColor = (evaluation?: string) => {
-    if (!evaluation) return "bg-gray-50 border border-gray-200";
+  const getRiskColor = (evaluation: string) => {
     switch (evaluation.toLowerCase()) {
       case "rot":
         return "bg-red-50 border border-red-200";
@@ -71,8 +43,7 @@ export function ContractClauses({ clauses = [] }: ContractClausesProps) {
     }
   };
 
-  const getRiskLabel = (evaluation?: string) => {
-    if (!evaluation) return "Unbekannt";
+  const getRiskLabel = (evaluation: string) => {
     switch (evaluation.toLowerCase()) {
       case "rot": return "Hohes Risiko";
       case "gelb": return "Mittleres Risiko";
@@ -82,18 +53,16 @@ export function ContractClauses({ clauses = [] }: ContractClausesProps) {
     }
   };
 
-  // Eindeutige ID für jede Klausel generieren (verwende elementId)
-  // const getClauseKey = (clause: AnalysisClause, index: number): string => {
-  //   return `${index}-${clause.chunkNumber || '0'}-${clause.clauseText.substring(0, 10)}`;
-  // };
+  // Eindeutige ID für jede Klausel generieren (Index + Text als Fallback)
+  const getClauseKey = (clause: AnalysisClause, index: number): string => {
+    return `${index}-${clause.chunkNumber || '0'}-${clause.clauseText.substring(0, 10)}`;
+  };
 
   return (
     <div className="rounded-lg border shadow-sm">
       <div className="divide-y">
-        {/* Passe die map-Funktion an den neuen clause-Typ an */}
-        {clauses.map((clause) => {
-          // Verwende elementId als Schlüssel
-          const clauseKey = clause.elementId;
+        {clauses.map((clause, index) => {
+          const clauseKey = getClauseKey(clause, index);
           return (
             <Collapsible
               key={clauseKey}
@@ -104,14 +73,11 @@ export function ContractClauses({ clauses = [] }: ContractClausesProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {getRiskIcon(clause.evaluation)}
-                    {/* Passe den Titel an, z.B. Element-Typ oder ID */}
-                    <span className="font-medium">{clause.elementType} ({clause.globalChunkNumber !== undefined ? `Chunk ${clause.globalChunkNumber}` : clause.elementId})</span>
+                    <span className="font-medium">Klausel (Chunk {clause.chunkNumber || 'N/A'})</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Passe Badge-Logik an */}
-                    <Badge 
-                        variant={clause.evaluation?.toLowerCase() === 'rot' ? 'destructive' : clause.evaluation?.toLowerCase() === 'gelb' ? 'outline' : 'default'}
-                        className={clause.evaluation?.toLowerCase() === 'gelb' ? 'bg-amber-100 text-amber-700 border-amber-200' : clause.evaluation?.toLowerCase() === 'grün' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
+                    <Badge variant={clause.evaluation.toLowerCase() === 'rot' ? 'destructive' : clause.evaluation.toLowerCase() === 'gelb' ? 'outline' : 'default'}
+                           className={clause.evaluation.toLowerCase() === 'gelb' ? 'bg-amber-100 text-amber-700 border-amber-200' : clause.evaluation.toLowerCase() === 'grün' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
                     >
                       {getRiskLabel(clause.evaluation)}
                     </Badge>
@@ -124,9 +90,8 @@ export function ContractClauses({ clauses = [] }: ContractClausesProps) {
               <CollapsibleContent>
                 <div className="space-y-4 p-4 pt-0">
                   <div className="rounded-md border p-3">
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Inhalt (Markdown):</h4>
-                    {/* Verwende markdownContent statt clauseText */}
-                    <pre className="text-sm whitespace-pre-wrap">{clause.markdownContent}</pre>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Klauseltext:</h4>
+                    <p className="text-sm whitespace-pre-wrap">{clause.clauseText}</p>
                   </div>
                   <div className={`rounded-md border p-3 text-gray-900 dark:text-gray-900 ${getRiskColor(clause.evaluation)}`}>
                     <h4 className="text-sm font-medium mb-1">Begründung ({getRiskLabel(clause.evaluation)}):</h4>

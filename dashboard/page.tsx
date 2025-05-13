@@ -11,21 +11,38 @@ import { Id } from "@/convex/_generated/dataModel"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import type { Doc } from "@/convex/_generated/dataModel"
+
+// Typ direkt aus Doc verwenden
+type ContractStatusType = Doc<"contracts">["status"];
 
 // Komponente für einzelne Vertrags-Items
-function ContractItem({ contract }: { contract: any }) {
-  const getStatusBadge = (status: string) => {
+function ContractItem({ contract }: { contract: Doc<"contracts"> }) {
+  const getStatusBadge = (status: ContractStatusType) => {
     switch (status) {
       case "completed":
         return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">Abgeschlossen</Badge>
-      case "processing":
-      case "chunking":
+      // Neue In-Progress-Status
+      case "preprocessing_structure":
+      case "stage1_chunking_inprogress":
+      case "stage2_structuring_inprogress":
+      case "stage3_analysis_inprogress":
+      // Alte Status (falls noch relevant als Fallback, sollten aber ersetzt werden)
+      // case "processing":
+      // case "chunking":
         return <Badge variant="secondary" className="animate-pulse">In Bearbeitung</Badge>
       case "pending":
         return <Badge variant="outline">Ausstehend</Badge>
+      // Neue Fehlerstatus
       case "failed":
+      case "stage1_chunking_failed":
+      case "stage2_structuring_failed":
+      case "failed_partial_analysis":
         return <Badge variant="destructive">Fehlgeschlagen</Badge>
+      case "archived":
+        return <Badge variant="outline">Archiviert</Badge>
       default:
+        // const _exhaustiveCheck: never = status; // Optional
         return <Badge variant="secondary">{status}</Badge>
     }
   }

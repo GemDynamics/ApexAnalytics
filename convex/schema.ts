@@ -7,30 +7,31 @@ const contractStatus = v.union(
   v.literal("pending"),
   v.literal("uploading"),
   v.literal("uploaded"),
-  v.literal("preprocessing_structure"), // NEU
-  v.literal("preprocessing_structure_chunked"), // NEU: Status hinzugefügt, der im Code verwendet wird
-  v.literal("structure_generation_inprogress"), // NEU
-  v.literal("structure_generation_completed"), // NEU
-  v.literal("structured_json_generated"), // NEU: Status hinzugefügt, der in structureContractIncrementallyAndCreateJsonElements verwendet wird
-  v.literal("chunking"), // War bereits als String-Möglichkeit in Mutationen
-  v.literal("processing"), // War bereits als String-Möglichkeit in Mutationen
-  v.literal("analysis_pending"), // NEU für Stufe 3
-  v.literal("analysis_inprogress"), // NEU für Stufe 3
-  v.literal("completed"),
-  v.literal("failed"),
-  v.literal("archived") 
+  v.literal("preprocessing_structure"), // Wird für Textextraktion noch verwendet
+  v.literal("processing"), // Generischer Status, bleibt vorerst
+  // NEU: Status für Stufe 1
+  v.literal("stage1_chunking_inprogress"),
+  v.literal("stage1_chunking_completed"),
+  v.literal("stage1_chunking_failed"),
+  // NEU: Status für Stufe 2
+  v.literal("stage2_structuring_inprogress"),
+  v.literal("stage2_structuring_completed"), // Wenn alle Chunks strukturiert sind
+  v.literal("stage2_structuring_failed"), // Wenn Strukturierung eines Chunks fehlschlägt
+  // NEU: Status für Stufe 3
+  v.literal("stage3_analysis_inprogress"),
+  // Bestehende End-/Fehlerstatus anpassen/beibehalten
+  v.literal("completed"), // Erfolgreicher Abschluss aller Stufen
+  v.literal("failed"), // Genereller Fehler (z.B. Upload) oder kritischer Fehler in Stufe 1/2
+  v.literal("failed_partial_analysis"), // Beibehalten für Fehler in Stufe 3
+  v.literal("archived"),
+  // Fehlender Status aus altem Schema
+  v.literal("analysis_inprogress"), // Wird in alten Verträgen noch verwendet
+  v.literal("chunking"), // Wird in alten Verträgen möglicherweise noch verwendet
+  v.literal("structured_json_generated") // Wird in alten Verträgen möglicherweise noch verwendet
 ); 
 
-// Definition für analysisProtocol Elemente, basierend auf den Fehlern
-// Dies ist eine Annahme, passe es an, falls die Struktur anders ist.
-const analysisProtocolEntry = v.object({
-    chunkNumber: v.optional(v.number()), // scheinbar optional oder später hinzugefügt
-    clauseText: v.string(),
-    evaluation: v.string(),
-    reason: v.string(),
-    recommendation: v.string(),
-    // ... potenziell weitere Felder
-});
+// Definition für analysisProtocol Elemente, basierend auf den Fehlern - ENTFERNT, da Analyseergebnisse in structuredContractElements
+// const analysisProtocolEntry = v.object({ ... });
 
 export default defineSchema({
   // Tabelle für Wissens-Chunks mit Vektor-Einbettungen
@@ -64,54 +65,68 @@ export default defineSchema({
     userId: v.optional(v.string()),
     storageId: v.optional(v.string()), // Sollte v.id("_storage") sein, wenn es direkt eine Convex Storage ID ist
     
-    // NEU: Strukturierter Inhalt und Metadaten aus Stufe 1
-    fullMarkdownText: v.optional(v.string()),
+    // NEU: Strukturierter Inhalt und Metadaten aus Stufe 1 (und/oder Upload)
+    fullMarkdownText: v.optional(v.string()), // Vollständiger Text nach initialer Konvertierung/Bereinigung
+
+    // NEU: Feld für große Chunks aus Stufe 1
+    largeChunks: v.optional(v.array(v.object({
+        chunkNumber: v.number(),
+        identifiedSections: v.array(v.string()), // Enthält nummerierte/benannte Hauptabschnitte
+        chunkContent: v.string()
+    }))),
+
+    // Angepasst: Detaillierte Struktur aus Stufe 2
     structuredContractElements: v.optional(v.array(
       v.object({
-        elementType: v.string(), // z.B. "titleH1", "sectionH2", "clauseH3", "paragraph"
-        elementId: v.string(),   // z.B. "# Titel", "## 1. Abschnitt", "### 1.1 Klausel"
+        elementType: v.string(),
+        elementId: v.string(),
         markdownContent: v.string(),
-        originalOrderInChunk: v.number(), // Reihenfolge innerhalb des ursprünglichen KI-Antwort-Chunks
-        globalOriginalOrder: v.number(),  // Globale Reihenfolge im gesamten Dokument
+        originalOrderInChunk: v.number(), // Reihenfolge innerhalb des Stage-2-JSON-Outputs
+        globalChunkNumber: v.number(), // Nummer des großen Chunks aus Stage 1 (NEU)
+        globalOriginalOrder: v.number(), // Globale Reihenfolge im gesamten Dokument (Bleibt relevant)
         // Felder für Analyseergebnisse aus Stufe 3 (optional, da sie später hinzugefügt werden)
-        evaluation: v.optional(v.string()), // z.B. "Rot", "Gelb", "Grün", "Info"
+        evaluation: v.optional(v.string()),
         reason: v.optional(v.string()),
         recommendation: v.optional(v.string()),
+        isError: v.optional(v.boolean()),
+        errorMessage: v.optional(v.string()),
       })
     )),
     
-    // Bestehende Felder für UI-Struktur (ggf. überprüfen, ob noch benötigt oder durch structuredContractElements abgedeckt)
-    structuredElements: v.optional(v.array( 
+    // Veraltet? Ggf. entfernen, falls komplett durch structuredContractElements ersetzt
+    structuredElements: v.optional(v.array(
       v.object({
-        id: v.string(), 
-        type: v.string(), 
+        id: v.string(),
+        type: v.string(),
         content: v.string(),
-        level: v.optional(v.number()), 
+        level: v.optional(v.number()),
         parentId: v.optional(v.string())
       })
     )),
-    createdAt: v.optional(v.number()), // Sollte v.number() sein, da Date.now() verwendet wird
-    uploadedAt: v.optional(v.number()), // Sollte v.number() sein
-    lastEditedAt: v.optional(v.number()), // Sollte v.number() sein
+    createdAt: v.optional(v.number()),
+    uploadedAt: v.optional(v.number()),
+    lastEditedAt: v.optional(v.number()),
 
-    // Felder für den Analyseprozess, basierend auf Fehlern hinzugefügt
-    status: v.optional(contractStatus),         // z.B. "pending", "processing", "completed", "failed"
-    totalChunks: v.optional(v.number()),       // Gesamtzahl der Chunks für die Analyse (Analyse-Chunks aus Stufe 2)
-    processedChunks: v.optional(v.number()),   // Anzahl der bereits verarbeiteten Chunks
-    analysisProtocol: v.optional(v.array(analysisProtocolEntry)), // Protokoll der Chunk-Analysen (Bezieht sich auf Stufe 3 Analyse-Chunks)
-    
-    // NEU: Details zum aktuellen Verarbeitungsschritt und Fehler
-    currentProcessingStepDetail: v.optional(v.string()), // z.B. "Vor-Chunk 5/10 strukturiert"
-    errorDetails: v.optional(v.string()), // Für detaillierte Fehlermeldungen während der Verarbeitung
+    // Status und Fortschritt
+    status: v.optional(contractStatus),
+    // NEU: Fortschrittsfelder für die neuen Stufen
+    totalLargeChunks: v.optional(v.number()),
+    structuredLargeChunks: v.optional(v.number()), // Anzahl erfolgreich strukturierter großer Chunks (Stufe 2)
+    totalElementsToAnalyze: v.optional(v.number()), // Gesamtzahl der Elemente aus Stufe 2
+    analyzedElements: v.optional(v.number()), // Anzahl erfolgreich analysierter Elemente (Stufe 3)
+
+    // Bestehende Felder für Details/Fehler
+    currentProcessingStepDetail: v.optional(v.string()), // Kann weiterhin genutzt werden für feinere Statusanzeige
+    errorDetails: v.optional(v.string()),
 
     // Feld für von Benutzern bearbeitete Analysen/Klauseln
-    editedAnalysis: v.optional(v.any()), // Typ v.any() als Platzhalter, spezifiziere dies genauer falls bekannt
+    editedAnalysis: v.optional(v.any()),
 
   })
   // Index für Abfragen nach Benutzer-ID
   .index("by_userId", ["userId"]),
 
-  // Tabelle für die Klauselanalyse
+  // Tabelle für die Klauselanalyse - Überprüfen, ob noch benötigt oder durch structuredContractElements abgedeckt
   clauseAnalyses: defineTable({
     contractId: v.id("contracts"),
     clauseId: v.string(), // Bezieht sich auf die ID im structuredElements Array
@@ -123,4 +138,6 @@ export default defineSchema({
     }),
     createdAt: v.number()
   })
+}, {
+  schemaValidation: true, // Schema-Validierung wieder aktiviert nach erfolgreicher Migration
 }); 

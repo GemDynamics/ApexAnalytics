@@ -3,23 +3,29 @@ import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 
-// Typ für den Status, um Typsicherheit zu gewährleisten
+// Typ für den Status, um Typsicherheit zu gewährleisten - Aktualisiert für 3-Stufen-Architektur
 type ContractStatus = 
-  | "pending"
-  | "uploading"
-  | "uploaded"
-  | "preprocessing_structure"
-  | "preprocessing_structure_chunked"
-  | "structure_generation_inprogress"
-  | "structure_generation_completed"
-  | "chunking"
-  | "processing"
-  | "analysis_pending"
-  | "analysis_inprogress"
-  | "completed"
-  | "failed"
-  | "archived"
-  | "structured_json_generated"; // Wird in structureContractIncrementallyAndCreateJsonElements verwendet
+  | "pending" // Datei hochgeladen, wartet auf Verarbeitung
+  | "uploading" // Nicht mehr direkt verwendet? Client-seitiger Status
+  | "uploaded" // Nicht mehr direkt verwendet? Client-seitiger Status
+  | "preprocessing_structure" // Textextraktion läuft
+  // Stage 1
+  | "stage1_chunking_inprogress"
+  | "stage1_chunking_completed"
+  | "stage1_chunking_failed"
+  // Stage 2
+  | "stage2_structuring_inprogress"
+  | "stage2_structuring_completed" 
+  | "stage2_structuring_failed" 
+  // Stage 3
+  | "stage3_analysis_inprogress"
+  | "completed" // Stage 3 erfolgreich abgeschlossen
+  | "failed_partial_analysis" // Stage 3 mit Fehlern abgeschlossen
+  // Allgemeiner Fehlerstatus
+  | "failed" 
+  // Sonstiges
+  | "archived";
+  // Veraltete Status entfernt: preprocessing_structure_chunked, structure_generation_*, chunking, processing, analysis_pending, analysis_inprogress, structured_json_generated
 
 // UUID-Generator für JavaScript Umgebung
 function generateUUID(): string {
@@ -81,7 +87,7 @@ export const uploadFile = mutation({
   args: {
     fileName: v.string(),
     fileType: v.string(),
-    fileBuffer: v.any(), // Verwende v.any() statt v.bytes(), um verschiedene Typen zu akzeptieren
+    fileBuffer: v.any(), 
   },
   handler: async (ctx, args) => {
     console.log(`Uploading file: ${args.fileName} (${args.fileType})`);
@@ -141,9 +147,13 @@ export const uploadFile = mutation({
         storageId: fakeStorageId,
         status: "pending",
         uploadedAt: Date.now(),
-        processedChunks: 0,
-        totalChunks: 0,
-        analysisProtocol: [],
+        // Keine veralteten Felder mehr hier
+        totalLargeChunks: 0, 
+        structuredLargeChunks: 0,
+        totalElementsToAnalyze: 0,
+        analyzedElements: 0,
+        largeChunks: [],
+        structuredContractElements: [],
       });
       
       console.log(`Contract record created with ID: ${contractId}`);
@@ -162,96 +172,132 @@ export const uploadFile = mutation({
 export const updateContractStatus = internalMutation({
   args: {
     contractId: v.id("contracts"),
-    status: v.string(), 
-    totalChunks: v.optional(v.number()),
+    status: v.string(), // Behalte string bei, Validierung erfolgt im Code
+    // totalChunks entfernt
     errorDetails: v.optional(v.string()),
+    // Zusätzliche Argumente für Fortschritts-Reset oder Initialisierung (optional)
+    resetProgress: v.optional(v.boolean()),
+    totalLargeChunks: v.optional(v.number()), // Für Initialisierung bei stage1_chunking_completed
+    totalElementsToAnalyze: v.optional(v.number()), // Für Initialisierung bei stage2_structuring_completed
+    currentProcessingStepDetail: v.optional(v.string()) // Neues optionales Feld
   },
   handler: async (ctx, args) => {
-    console.log(`Updating status for contract ${args.contractId} to ${args.status}, totalChunks: ${args.totalChunks}, error: ${args.errorDetails}`);
+    // Validierung des Status gegen den definierten Typ
+    const validStatuses: ContractStatus[] = [
+        "pending", "uploading", "uploaded", "preprocessing_structure", 
+        "stage1_chunking_inprogress", "stage1_chunking_completed", "stage1_chunking_failed",
+        "stage2_structuring_inprogress", "stage2_structuring_completed", "stage2_structuring_failed",
+        "stage3_analysis_inprogress", "completed", "failed_partial_analysis", "failed", "archived"
+    ];
+    if (!validStatuses.includes(args.status as ContractStatus)) {
+        console.error(`Invalid status provided to updateContractStatus: ${args.status}`);
+        // Optional: Fehler werfen oder loggen und abbrechen
+        throw new ConvexError(`Invalid status provided: ${args.status}`);
+    }
+    
+    console.log(`Updating status for contract ${args.contractId} to ${args.status}, error: ${args.errorDetails}, step: ${args.currentProcessingStepDetail}`);
     
     const patchData: Partial<Doc<"contracts">> = { 
       status: args.status as ContractStatus, 
     };
 
-    if (args.totalChunks !== undefined) {
-      patchData.totalChunks = args.totalChunks;
-    }
+    // Veraltete Zuweisung entfernt: totalChunks
     if (args.errorDetails !== undefined) {
       patchData.errorDetails = args.errorDetails;
     }
+    if (args.currentProcessingStepDetail !== undefined) {
+        patchData.currentProcessingStepDetail = args.currentProcessingStepDetail;
+    }
+
+    // Fortschritt zurücksetzen, wenn explizit angefordert oder bei bestimmten Statusübergängen
+    const shouldResetProgress = args.resetProgress || [
+        "pending", 
+        "preprocessing_structure", // Beim Start der Textextraktion
+        "stage1_chunking_inprogress", // Beim Start von Stufe 1
+        "stage2_structuring_inprogress", // Beim Start von Stufe 2
+        "stage3_analysis_inprogress" // Beim Start von Stufe 3
+    ].includes(args.status as ContractStatus);
+
+    if (shouldResetProgress) {
+        // Setze die relevanten Zähler zurück
+        patchData.structuredLargeChunks = 0;
+        patchData.analyzedElements = 0;
+        // Optional: Auch die Arrays leeren? Hängt von der Logik ab, ob sie überschrieben werden.
+        // patchData.structuredContractElements = []; 
+        // patchData.largeChunks = [];
+        console.log(`Progress counters reset for contract ${args.contractId} due to status ${args.status} or resetProgress flag.`);
+    }
     
-    if (args.status === "processing" || args.status === "chunking" || args.status === "pending" || args.status === "preprocessing_structure" || args.status === "preprocessing_structure_chunked" || args.status === "structure_generation_inprogress") {
-        patchData.analysisProtocol = [];
-        patchData.processedChunks = 0;
+    // Initialisiere Gesamtzahlen, wenn sie übergeben werden (z.B. nach Abschluss einer Stufe)
+    if (args.totalLargeChunks !== undefined) {
+        patchData.totalLargeChunks = args.totalLargeChunks;
     }
+     if (args.totalElementsToAnalyze !== undefined) {
+        patchData.totalElementsToAnalyze = args.totalElementsToAnalyze;
+    }
+    
+    // Veraltete Felder nicht mehr zurücksetzen: analysisProtocol, processedChunks
+    
     await ctx.db.patch(args.contractId, patchData);
   },
 });
 
-export const appendChunkAnalysis = internalMutation({
-  args: {
-    contractId: v.id("contracts"),
-    chunkNumber: v.number(),
-    totalChunks: v.number(),
-    chunkResult: v.array(
-      v.object({
-        clauseText: v.string(),
-        evaluation: v.string(),
-        reason: v.string(),
-        recommendation: v.string(),
-      })
-    ),
-    error: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const contract = await ctx.db.get(args.contractId);
-    if (!contract) {
-      console.error(`Contract not found: ${args.contractId} in appendChunkAnalysis`);
-      return;
-    }
+/* --- VERALTETE MUTATIONEN (auskommentiert nach Implementierung der neuen Stufen) ---
 
-    let newProcessedChunks = (contract.processedChunks || 0) + 1;
-    // Stelle sicher, dass analysisProtocol immer ein Array ist
-    let currentProtocol = Array.isArray(contract.analysisProtocol) ? [...contract.analysisProtocol] : [];
+// VERALTET: Nutzt analysisProtocol, processedChunks, totalChunks
+// export const appendChunkAnalysis = internalMutation({
+//   args: {
+//     contractId: v.id("contracts"),
+//     chunkNumber: v.number(),
+//     totalChunks: v.number(),
+//     chunkResult: v.array(
+//       v.object({
+//         clauseText: v.string(),
+//         evaluation: v.string(),
+//         reason: v.string(),
+//         recommendation: v.string(),
+//       })
+//     ),
+//     error: v.optional(v.string()),
+//   },
+//   handler: async (ctx, args) => {
+//     // ... alter Code ...
+//     console.log("VERALTETE MUTATION: appendChunkAnalysis");
+//   },
+// });
 
+// VERALTET: Ruft alte createAnalysisChunksFromStructuredElements auf
+// export const storeStructuredElementsAndTriggerAnalysis = internalMutation({
+//   args: {
+//     contractId: v.id("contracts"),
+//     structuredElements: v.array(v.any()), // Typ war hier schon unspezifisch
+//     fullMarkdownText: v.string(),
+//   },
+//   handler: async (ctx, args) => {
+//     // ... alter Code ...
+//     console.log("VERALTETE MUTATION: storeStructuredElementsAndTriggerAnalysis");
+//   }
+// });
 
-    if (args.error) {
-      console.error(`Error in chunk ${args.chunkNumber} for contract ${args.contractId}: ${args.error}`);
-      currentProtocol.push({
-        chunkNumber: args.chunkNumber,
-        clauseText: `Fehler bei der Analyse von Chunk ${args.chunkNumber}`,
-        evaluation: "Fehler",
-        reason: args.error,
-        recommendation: "Chunk konnte nicht analysiert werden.",
-      });
-    } else {
-      // Stelle sicher, dass chunkResult auch ein Array ist und füge chunkNumber hinzu
-      const resultsToAdd = Array.isArray(args.chunkResult) ? args.chunkResult : [];
-      resultsToAdd.forEach(r => currentProtocol.push({ ...r, chunkNumber: args.chunkNumber }));
-    }
+// VERALTET: Verwendet processedChunks
+// export const updateProcessedChunks = internalMutation({
+//     args: {
+//         contractId: v.id("contracts"),
+//         processedChunks: v.number(),
+//     },
+//     handler: async (ctx, args) => {
+//         // ... alter Code ...
+//         console.log("VERALTETE MUTATION: updateProcessedChunks");
+//     }
+// });
 
-    currentProtocol.sort((a, b) => (a.chunkNumber || 0) - (b.chunkNumber || 0));
+// VERALTET: Wurde durch finalizeAnalysis ersetzt
+// Typ für das Ergebnis-Objekt, das die Bulk-Mutation erwartet
+// type ElementAnalysisResultInput = { ... };
+// export const bulkMergeAnalysisResults = internalMutation({ ... });
 
-    const patchData: Partial<Doc<"contracts">> = {
-      analysisProtocol: currentProtocol,
-      processedChunks: newProcessedChunks,
-    };
-
-    if (newProcessedChunks === contract.totalChunks && contract.totalChunks !== undefined && contract.totalChunks > 0) {
-      const hasErrors = currentProtocol.some(entry => entry.evaluation === "Fehler");
-      patchData.status = hasErrors ? "failed" : "completed";
-      console.log(`All ${contract.totalChunks} chunks processed for contract ${args.contractId}. Final status: ${patchData.status}`);
-    } else if (contract.totalChunks !== undefined && newProcessedChunks > contract.totalChunks ){
-        console.warn(`Processed chunks (${newProcessedChunks}) exceed total chunks (${contract.totalChunks}) for contract ${args.contractId}. Setting to completed if no errors.`);
-        const hasErrors = currentProtocol.some(entry => entry.evaluation === "Fehler");
-        patchData.status = hasErrors ? "failed" : "completed"; // Sicherheitsnetz
-    } else {
-        patchData.status = "processing"; 
-    }
-
-    await ctx.db.patch(args.contractId, patchData);
-  },
-});
+--- ENDE VERALTETE MUTATIONEN ---
+*/
 
 export const createContractRecord = mutation({
     args: {fileName: v.string(), storageId: v.id("_storage")},
@@ -264,11 +310,16 @@ export const createContractRecord = mutation({
             userId: identity.subject,
             fileName: args.fileName,
             storageId: args.storageId,
-            status: "pending",
+            status: "pending", // Startstatus
             uploadedAt: Date.now(),
-            processedChunks: 0,
-            totalChunks: 0, // Initialwert
-            analysisProtocol: [],
+            // Veraltete Felder entfernt: processedChunks, totalChunks, analysisProtocol
+            // Neue Felder initialisieren
+            totalLargeChunks: 0, 
+            structuredLargeChunks: 0,
+            totalElementsToAnalyze: 0,
+            analyzedElements: 0,
+            largeChunks: [], // Initial leeres Array für Stufe 1 Ergebnisse
+            structuredContractElements: [], // Initial leeres Array für Stufe 2/3 Ergebnisse
         });
         return contractId;
     }
@@ -458,6 +509,8 @@ export const _migrateOwnerIdToUserIdAndClearOldField = internalMutation({
 */
 // --- END MIGRATION FUNCTIONS --- 
 
+// VERALTET: updateContractProcessingProgress - ist korrekt auskommentiert
+/*
 export const updateContractProcessingProgress = internalMutation({
   args: {
     contractId: v.id("contracts"),
@@ -477,6 +530,7 @@ export const updateContractProcessingProgress = internalMutation({
     await ctx.db.patch(args.contractId, patchData);
   },
 });
+*/
 
 export const updateContractWithStructuredData = internalMutation({
   args: {
@@ -484,15 +538,19 @@ export const updateContractWithStructuredData = internalMutation({
     fullMarkdownText: v.string(),
     structuredContractElements: v.array(
       v.object({
-        elementType: v.string(), // Sollte eigentlich ein v.union aus den erlaubten Typen sein
+        elementType: v.string(), 
         elementId: v.string(),
         markdownContent: v.string(),
         originalOrderInChunk: v.number(),
+        globalChunkNumber: v.number(), // Feld hinzugefügt
         globalOriginalOrder: v.number(),
         // Die folgenden Felder sind für spätere Analysestufen und hier optional
         evaluation: v.optional(v.string()),
         reason: v.optional(v.string()),
         recommendation: v.optional(v.string()),
+        // Füge isError und errorMessage hinzu, um dem Schema zu entsprechen
+        isError: v.optional(v.boolean()),
+        errorMessage: v.optional(v.string()),
       })
     ),
   },
@@ -501,8 +559,7 @@ export const updateContractWithStructuredData = internalMutation({
     await ctx.db.patch(args.contractId, {
       fullMarkdownText: args.fullMarkdownText,
       structuredContractElements: args.structuredContractElements,
-      // processedChunks und totalChunks werden hier nicht direkt angepasst,
-      // sondern durch updateContractStatus oder updateContractProcessingProgress
+      // Fortschrittsfelder (processedChunks, totalChunks) werden nicht mehr hier gesetzt
     });
   },
 }); 
@@ -564,5 +621,251 @@ export const mergeAnalysisResult = internalMutation({
     });
 
     console.log(`Merged analysis result for element ${args.elementId} in contract ${args.contractId}.`);
+  },
+}); 
+
+// Typdefinition für die Analyseergebnisse, die von Stufe 3 kommen
+const analysisResultInputSchema = v.object({
+    elementId: v.string(),
+    evaluation: v.string(),
+    reason: v.string(),
+    recommendation: v.string(),
+    isError: v.boolean(),
+    errorMessage: v.optional(v.string())
+});
+
+// NEUE Mutation zum Zusammenführen der Analyseergebnisse aus Stufe 3 und Abschließen des Prozesses
+export const finalizeAnalysis = internalMutation({
+    args: {
+        contractId: v.id("contracts"),
+        analysisResults: v.array(analysisResultInputSchema), // Array der Ergebnisse für jedes Element
+        stage3Errors: v.optional(v.array(v.string())), // Optionale Liste von Fehlermeldungen aus Stufe 3
+    },
+    handler: async (ctx, args) => {
+        console.log(`Finalizing analysis for contract ${args.contractId} with ${args.analysisResults.length} element results.`);
+
+        const contract = await ctx.db.get(args.contractId);
+        if (!contract) {
+            console.error(`Contract ${args.contractId} not found in finalizeAnalysis.`);
+            return; // Nicht fatal
+        }
+
+        if (!contract.structuredContractElements) {
+             console.error(`Contract ${args.contractId} has no structured elements to merge analysis results into.`);
+            // Setze Status auf Fehler, da etwas schiefgelaufen sein muss
+            await ctx.db.patch(args.contractId, {
+                status: "failed", // Generischer Fehler
+                errorDetails: (contract.errorDetails || "") + "\nError in finalizeAnalysis: structuredContractElements missing.",
+                currentProcessingStepDetail: "Finalizing Analysis FAILED (No elements)"
+            });
+            return;
+        }
+
+        // 1. Erstelle eine Map der Analyseergebnisse für schnellen Zugriff via elementId
+        const resultsMap = new Map<string, typeof args.analysisResults[0]>();
+        for (const result of args.analysisResults) {
+            resultsMap.set(result.elementId, result);
+        }
+
+        // 2. Merge Analyseergebnisse in structuredContractElements
+        let updatedElements = contract.structuredContractElements.map((element: any) => {
+            const analysis = resultsMap.get(element.elementId);
+            if (analysis) {
+                return {
+                    ...element,
+                    evaluation: analysis.evaluation,
+                    reason: analysis.reason,
+                    recommendation: analysis.recommendation,
+                    isError: analysis.isError,
+                    errorMessage: analysis.errorMessage
+                };
+            }
+            return element;
+        });
+
+        // 3. Finalen Status bestimmen
+        let finalStatus: Doc<"contracts">["status"] = "completed";
+        let errorDetails = contract.errorDetails || "";
+        const analyzedCount = args.analysisResults.length; // Anzahl der zurückgegebenen Ergebnisse
+        const elementsWithError = args.analysisResults.filter(r => r.isError).length;
+
+        if (args.stage3Errors && args.stage3Errors.length > 0) {
+            finalStatus = "failed_partial_analysis";
+            errorDetails += `\nStage 3 Orchestration Errors: ${args.stage3Errors.join("; ")}`;
+        } else if (elementsWithError > 0) {
+             finalStatus = "failed_partial_analysis";
+             errorDetails += `\nStage 3 Analysis Errors: ${elementsWithError} elements failed analysis (see error fields in elements).`;
+        }
+        
+        if (analyzedCount !== contract.totalElementsToAnalyze) {
+             console.warn(`Mismatch in element count during finalizeAnalysis for ${args.contractId}. Expected ${contract.totalElementsToAnalyze}, got ${analyzedCount} results.`);
+             if (finalStatus === "completed") { 
+                 finalStatus = "failed_partial_analysis";
+                 errorDetails += `\nStage 3 Warning: Element count mismatch (Expected ${contract.totalElementsToAnalyze}, Got ${analyzedCount}).`;
+             }
+        }
+
+        console.log(`Final status for contract ${args.contractId}: ${finalStatus}. Analyzed: ${analyzedCount}, Errors: ${elementsWithError}.`);
+
+        // 4. Update durchführen
+        await ctx.db.patch(args.contractId, {
+            structuredContractElements: updatedElements,
+            analyzedElements: analyzedCount - elementsWithError, // Anzahl erfolgreich analysierter Elemente
+            status: finalStatus,
+            errorDetails: errorDetails.trim(),
+            currentProcessingStepDetail: `Analysis finished. Status: ${finalStatus}. ${analyzedCount - elementsWithError}/${contract.totalElementsToAnalyze || analyzedCount} elements analyzed successfully.`
+        });
+
+        console.log(`Contract ${args.contractId} analysis finalized.`);
+    },
+});
+
+// Bestehende Mutation bulkMergeAnalysisResults (wird durch Stufe 3 ersetzt)
+// ... (kann später entfernt werden)
+
+// Mutation zum Aktualisieren eines spezifischen Abschnitts im Frontend-Editor (Beispiel)
+// ... existing code ... 
+
+// NEU: Speichert das Ergebnis von Stufe 1 (largeChunks) und triggert Stufe 2
+export const saveLargeChunks = internalMutation({
+  args: {
+    contractId: v.id("contracts"),
+    largeChunks: v.array(v.object({
+        chunkNumber: v.number(),
+        identifiedSections: v.array(v.string()),
+        chunkContent: v.string()
+    })),
+  },
+  handler: async (ctx, args) => {
+    console.log(`Saving ${args.largeChunks.length} large chunks for contract ${args.contractId}`);
+    await ctx.db.patch(args.contractId, {
+        largeChunks: args.largeChunks,
+        totalLargeChunks: args.largeChunks.length,
+        status: "stage1_chunking_completed", // Status aktualisieren
+        currentProcessingStepDetail: `Stage 1 completed. ${args.largeChunks.length} large chunks identified.`
+    });
+
+    // Trigger Stufe 2
+    await ctx.scheduler.runAfter(0, internal.contractActions.startStage2Structuring, {
+      contractId: args.contractId,
+    });
+    console.log(`Scheduled Stage 2 structuring for contract ${args.contractId}`);
+  },
+});
+
+// NEU: Speichert die Ergebnisse von Stufe 2 (structuredElements) und triggert Stufe 3
+export const saveStructuredElements = internalMutation({
+  args: {
+    contractId: v.id("contracts"),
+    structuredElements: v.array(
+        v.object({ // Stelle sicher, dass dies mit dem Schema übereinstimmt
+            elementType: v.string(),
+            elementId: v.string(),
+            markdownContent: v.string(),
+            originalOrderInChunk: v.number(),
+            globalChunkNumber: v.number(), 
+            globalOriginalOrder: v.number(),
+            // Analysefelder sind hier noch leer/optional
+            evaluation: v.optional(v.string()),
+            reason: v.optional(v.string()),
+            recommendation: v.optional(v.string()),
+            isError: v.optional(v.boolean()),
+            errorMessage: v.optional(v.string()),
+        })
+    ),
+    stage2Errors: v.optional(v.array(v.string())), // Optionale Fehler aus der Stage 2 Orchestrierung
+    successfulChunksCount: v.number(), // Anzahl der erfolgreich strukturierten Chunks
+  },
+  handler: async (ctx, args) => {
+    console.log(`Saving ${args.structuredElements.length} structured elements for contract ${args.contractId} from ${args.successfulChunksCount} successful chunks.`);
+
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+        console.error(`Contract ${args.contractId} not found in saveStructuredElements.`);
+        return;
+    }
+    
+    let finalStatus: ContractStatus = "stage2_structuring_completed";
+    let errorDetails = contract.errorDetails || "";
+
+    if (args.stage2Errors && args.stage2Errors.length > 0) {
+        finalStatus = "stage2_structuring_failed"; // Setze Fehlerstatus, wenn Orchestrierungsfehler auftraten
+        errorDetails += `
+Stage 2 Structuring Errors: ${args.stage2Errors.join("; ")}`;
+    } else if (args.successfulChunksCount !== contract.totalLargeChunks) {
+         finalStatus = "stage2_structuring_failed"; // Setze Fehlerstatus, wenn nicht alle Chunks erfolgreich waren
+         errorDetails += `
+Stage 2 Structuring Error: Only ${args.successfulChunksCount} out of ${contract.totalLargeChunks} large chunks were structured successfully.`;
+    }
+
+    await ctx.db.patch(args.contractId, {
+        structuredContractElements: args.structuredElements,
+        totalElementsToAnalyze: args.structuredElements.length,
+        structuredLargeChunks: args.successfulChunksCount, // Anzahl erfolgreicher Chunks speichern
+        status: finalStatus,
+        errorDetails: errorDetails.trim(),
+        currentProcessingStepDetail: `Stage 2 finished. ${args.successfulChunksCount}/${contract.totalLargeChunks || '?'} chunks structured. ${args.structuredElements.length} elements ready for analysis.`
+    });
+
+    // Trigger Stufe 3 nur, wenn Stufe 2 erfolgreich war
+    if (finalStatus === "stage2_structuring_completed") {
+      await ctx.scheduler.runAfter(0, internal.contractActions.startStage3Analysis, {
+        contractId: args.contractId,
+      });
+      console.log(`Scheduled Stage 3 analysis for contract ${args.contractId}`);
+    } else {
+       console.warn(`Stage 3 analysis not scheduled for contract ${args.contractId} due to errors in Stage 2.`);
+    }
+  },
+});
+
+// --- ENDE NEUE MUTATIONEN ---
+
+// ... restliche Mutationen (updateContractAnalysis, updateFileName etc.) ... 
+
+/**
+ * INTERNAL MUTATION: Entfernt veraltete Felder aus einem einzelnen Vertragsdokument.
+ * Wird von der `migrateRemoveObsoleteFields`-Action aufgerufen.
+ */
+export const _removeObsoleteContractFields = mutation({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) {
+      console.warn(`Contract ${args.contractId} not found during migration. Skipping.`);
+      return;
+    }
+
+    // Erstelle ein neues Objekt ohne die veralteten Felder
+    // TypeScript wird hier meckern, da die Felder nicht im Typ sind,
+    // aber wir wissen, dass sie im alten Dokument existieren könnten.
+    const migratedContract: any = { ...contract };
+    let updated = false;
+
+    // Wir casten zu any um auf die veralteten Felder zuzugreifen
+    const anyContract: any = migratedContract;
+    
+    if (anyContract.analysisProtocol !== undefined) {
+      delete anyContract.analysisProtocol;
+      updated = true;
+    }
+    
+    if (anyContract.processedChunks !== undefined) {
+      delete anyContract.processedChunks;
+      updated = true;
+    }
+    
+    if (anyContract.totalChunks !== undefined) {
+      delete anyContract.totalChunks;
+      updated = true;
+    }
+
+    if (updated) {
+      // Ersetze das alte Dokument mit dem bereinigten
+      await ctx.db.replace(args.contractId, migratedContract);
+      console.log(`Removed obsolete fields from contract ${args.contractId}.`);
+    } else {
+       // console.log(`No obsolete fields found in contract ${args.contractId}. No update needed.`);
+    }
   },
 }); 
