@@ -175,7 +175,18 @@ export function ContractSection({
               onClick();
             }
             }}>
-             <ReactMarkdown>{section.content}</ReactMarkdown>
+             <ReactMarkdown
+               components={{
+                 // Überschreibe Standard-Rendering für Tabellen und ähnliche Elemente
+                 table: ({node, ...props}) => (
+                   <div style={{overflowX: 'auto', width: '100%'}}>
+                     <table style={{display: 'block', width: '100%'}} {...props} />
+                   </div>
+                 ),
+                 // Stelle sicher, dass alle Elemente sich der Container-Breite anpassen
+                 div: ({node, ...props}) => <div style={{display: 'block', width: '100%'}} {...props} />
+               }}
+             >{section.content}</ReactMarkdown>
            </div>
         )}
         

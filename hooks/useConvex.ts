@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Verträge abrufen (mit Typisierung)
 export function useContracts() {
@@ -16,14 +16,36 @@ export function useContracts() {
 
 // Einzelnen Vertrag nach ID abrufen
 export function useContract(contractId: Id<"contracts"> | undefined | "skip") {
-  const contract = useQuery(
+  const [error, setError] = useState<Error | null>(null);
+  const [isLocal, setIsLocal] = useState(false);
+  
+  // Nutze try/catch in einem useEffect, um Fehler abzufangen
+  useEffect(() => {
+    setError(null);
+    setIsLocal(false);
+  }, [contractId]);
+
+  const queryResult = useQuery(
     api.contractsQueries.getContractById, 
-    contractId === "skip" ? "skip" : contractId ? { contractId } : "skip"
+    contractId === "skip" ? "skip" : contractId ? { contractId } : "skip",
+    {
+      // Fehlerbehandlung für die Query
+      onError: (err) => {
+        console.error(`Fehler beim Laden des Vertrags mit ID ${contractId}:`, err);
+        setError(err);
+        setIsLocal(true);
+      }
+    }
   );
   
+  // Abgeleiteter Zustand - isLoading ist nur true, wenn wir tatsächlich laden und kein Fehler vorliegt
+  const isLoading = queryResult === undefined && contractId !== "skip" && !error;
+  
   return {
-    contract,
-    isLoading: contract === undefined && contractId !== "skip",
+    contract: queryResult,
+    isLoading,
+    error,
+    errorMessage: error?.message || null
   };
 }
 

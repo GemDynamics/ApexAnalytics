@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Building2, Plus } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AuthButtons } from "./auth-components"
+import { NewAnalysisLink, AuthRedirectLink } from "./auth-redirect-link"
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -20,27 +21,27 @@ export function DashboardShell({ children }: DashboardShellProps) {
             <div className="bg-primary p-1.5 rounded-md">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
-            <Link href="/">
+            <AuthRedirectLink href="/">
               <span className="text-xl">BauVertragsanalyse</span>
-            </Link>
+            </AuthRedirectLink>
           </div>
           <nav className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <AuthRedirectLink href="/dashboard">
               <Button variant="ghost" size="sm" className="rounded-full px-4">
                 Dashboard
               </Button>
-            </Link>
-            <Link href="/analytik">
+            </AuthRedirectLink>
+            <AuthRedirectLink href="/analytik">
               <Button variant="ghost" size="sm" className="rounded-full px-4">
                 Analytik
               </Button>
-            </Link>
-            <Link href="/neue-analyse">
+            </AuthRedirectLink>
+            <NewAnalysisLink>
               <Button size="sm" className="gap-1 rounded-full px-4">
                 <Plus className="h-4 w-4" />
                 Neue Analyse
               </Button>
-            </Link>
+            </NewAnalysisLink>
           </nav>
           <div className="flex items-center gap-3">
             <ThemeToggle />
@@ -63,15 +64,15 @@ export function DashboardShell({ children }: DashboardShellProps) {
             <p className="text-xs text-muted-foreground">© 2024 BauVertragsanalyse. Alle Rechte vorbehalten.</p>
           </div>
           <nav className="flex gap-4 text-sm text-muted-foreground">
-            <Link href="#" className="transition-colors hover:text-foreground">
+            <AuthRedirectLink href="#" className="transition-colors hover:text-foreground">
               Impressum
-            </Link>
-            <Link href="#" className="transition-colors hover:text-foreground">
+            </AuthRedirectLink>
+            <AuthRedirectLink href="#" className="transition-colors hover:text-foreground">
               Datenschutz
-            </Link>
-            <Link href="#" className="transition-colors hover:text-foreground">
+            </AuthRedirectLink>
+            <AuthRedirectLink href="#" className="transition-colors hover:text-foreground">
               Kontakt
-            </Link>
+            </AuthRedirectLink>
           </nav>
         </div>
       </footer>

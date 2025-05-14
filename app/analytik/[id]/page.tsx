@@ -27,36 +27,39 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
   // sind selbst für das Laden ihrer Daten verantwortlich.
   const contractsQuery = useQuery(api.contracts.getAllContracts, {});
 
-  const contracts = contractsQuery?.data;
-  const isLoading = contractsQuery === undefined || (contractsQuery as any)?.isLoading; // Sicherer Zugriff auf isLoading
+  // Korrektur: contractsQuery ist das Array der Verträge oder undefined.
+  // isLoading ist true, wenn contractsQuery undefined ist.
+  const contracts = contractsQuery;
+  const isLoading = contracts === undefined;
 
   // TODO: initialTab Logik basierend auf URL oder State Management implementieren
   const initialTab = "editor";
 
   return (
     <AnalyticsLayout contracts={contracts || null} selectedContractId={contractId} isLoading={isLoading}>
-      <div className="w-full h-full p-4 md:p-6">
+      <div className="w-full h-full flex flex-col">
         <Tabs defaultValue={initialTab} className="w-full h-full flex flex-col">
-          <TabsList className="sticky top-0 bg-background z-10 grid grid-cols-3 w-full">
+          {/* Sticky TabsList am oberen Rand, mit Minimal-Padding */}
+          <TabsList className="sticky top-0 bg-background z-10 grid grid-cols-3 w-full rounded-none px-2">
             <TabsTrigger value="editor">Vertragseditor</TabsTrigger>
             <TabsTrigger value="risikoanalyse">Risikoanalyse</TabsTrigger>
             <TabsTrigger value="verhandlung">Verhandlung</TabsTrigger>
           </TabsList>
-          <TabsContent value="editor" className="flex-grow overflow-y-auto mt-0">
+          <TabsContent value="editor" className="flex-grow overflow-auto mt-0">
             {contractId ? (
               <ContractEditorWithContract contractId={contractId} />
             ) : (
               <div className="text-center text-muted-foreground py-8">Kein Vertrag ausgewählt.</div>
             )}
           </TabsContent>
-          <TabsContent value="risikoanalyse" className="flex-grow overflow-y-auto mt-0">
+          <TabsContent value="risikoanalyse" className="flex-grow overflow-auto mt-0">
             {contractId ? (
                 <RiskAnalysisCharts contractId={contractId} />
             ) : (
               <div className="text-center text-muted-foreground py-8">Kein Vertrag ausgewählt.</div>
             )}
           </TabsContent>
-          <TabsContent value="verhandlung" className="flex-grow overflow-y-auto mt-0">
+          <TabsContent value="verhandlung" className="flex-grow overflow-auto mt-0">
             {contractId ? (
                 <NegotiationSimulator contractId={contractId} />
             ) : (

@@ -73,14 +73,21 @@ export function AnalyticsLayout({ contractId, initialTab = "editor", children, c
   const contractsForList = contracts === undefined ? null : contracts;
 
   return (
-    <div className="relative flex overflow-hidden bg-background">
-      {/* ContractsList Container */}
+    // Position: fixed mit top: 64px (Header-Höhe) statt 0, um unter dem Header zu bleiben
+    // z-index: 10, um über dem normalen Inhalt, aber unter dem Header (z-40) zu sein
+    <div className="fixed left-0 right-0 bottom-0 overflow-hidden bg-background" style={{ top: '64px', zIndex: 10 }}>
+      {/* ContractsList Container - direkt am linken Rand ohne Abstände */}
       <div
         style={{
           width: `${contractsListPixelWidth}px`,
           transition: 'width 0.3s ease-in-out',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 20
         }}
-        className="absolute top-0 left-0 h-full z-20 bg-background shadow-md" // Added bg-background and shadow for better visual separation
+        className="bg-background shadow-md" 
       >
         {/* Render ContractsList only if its width is > 0 to avoid rendering it collapsed if it has no collapsed view */}
         {contractsListPixelWidth > 0 && (
@@ -99,13 +106,16 @@ export function AnalyticsLayout({ contractId, initialTab = "editor", children, c
       {!isMobile && ( // Hide separator and button on mobile if ContractsList is always collapsed
         <div
           style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
             left: `${contractsListPixelWidth}px`,
+            width: `${SEPARATOR_WIDTH_PX}px`,
+            zIndex: 30,
             transition: 'left 0.3s ease-in-out',
+            backgroundColor: 'hsl(var(--border))'
           }}
-          className="absolute top-0 h-full z-30"
-        >
-          <div className="w-px h-full bg-border" /> {/* Using theme border color */}
-        </div>
+        />
       )}
 
       {/* Toggle Button */}
@@ -114,11 +124,16 @@ export function AnalyticsLayout({ contractId, initialTab = "editor", children, c
           variant="ghost"
           size="sm"
           onClick={handleToggleContractsList}
-          className="absolute top-1/2 z-40 p-1" // Adjusted padding
           style={{
-            left: `${contractsListPixelWidth -14 + SEPARATOR_WIDTH_PX}px`, // Position button relative to separator
-            transform: 'translateY(-50%) translateX(-50%)', // Center button on the line
-            transition: 'left 0.3s ease-in-out',
+            position: 'absolute',
+            top: '50%',
+            left: `${contractsListPixelWidth + SEPARATOR_WIDTH_PX + 2}px`,
+            transform: 'translateY(-50%)',
+            zIndex: 40,
+            padding: '4px',
+            backgroundColor: 'hsl(var(--background))',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'left 0.3s ease-in-out'
           }}
           aria-label={isContractsListExpanded ? "Collapse contracts list" : "Expand contracts list"}
         >
@@ -130,16 +145,18 @@ export function AnalyticsLayout({ contractId, initialTab = "editor", children, c
         </Button>
       )}
 
-      {/* Main Content Area */}
+      {/* Main Content Area - statisch, kein flex, ohne Padding */}
       <div
         style={{
-          marginLeft: isMobile ? `${COLLAPSED_WIDTH_PX}px` : `${contractsListPixelWidth + SEPARATOR_WIDTH_PX}px`,
-          transition: 'margin-left 0.3s ease-in-out',
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: `${contractsListPixelWidth + SEPARATOR_WIDTH_PX}px`,
+          overflow: 'auto',
+          transition: 'left 0.3s ease-in-out'
         }}
-        className="h-full flex-grow overflow-y-auto" // Removed p-4/md:p-6, will be handled by child page or layout
       >
-        {/* Padding should be inside this div if needed globally, or handled by the page consuming this layout */}
-        {/* Example: <div className="p-4 md:p-6 h-full">{children}</div> */}
         {children}
       </div>
     </div>

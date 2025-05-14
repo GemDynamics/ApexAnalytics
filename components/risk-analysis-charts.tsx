@@ -53,14 +53,16 @@ export function RiskAnalysisCharts({ contractId }: RiskAnalysisChartsProps) {
 
   // Transformieren der Vertragsdaten in EditorSection-Format für die Charts
   const analysisData: EditorSection[] = useMemo(() => {
-    if (!contract?.analysisProtocol) {
+    if (!contract?.structuredContractElements || contract.structuredContractElements.length === 0) {
       return [];
     }
 
-    return contract.analysisProtocol.map((clause, index) => {
+    return contract.structuredContractElements.map((element, index) => {
       // Risiko-Mapping
       let riskLevel: "low" | "medium" | "high" | "error" = "low";
-      switch (clause.evaluation.toLowerCase()) {
+      const evaluation = element.evaluation || "grün"; // Fallback, falls keine Bewertung vorhanden ist
+      
+      switch (evaluation.toLowerCase()) {
         case "rot":
           riskLevel = "high";
           break;
@@ -76,17 +78,17 @@ export function RiskAnalysisCharts({ contractId }: RiskAnalysisChartsProps) {
       }
 
       return {
-        id: `chart-clause-${clause.chunkNumber || '0'}-${index}`,
-        title: `Klausel ${index + 1}`,
-        content: clause.clauseText,
+        id: `chart-clause-${element.globalOriginalOrder || '0'}-${index}`,
+        title: element.elementType === 'clauseH3' ? `Klausel ${index + 1}` : `Element ${element.globalOriginalOrder || index + 1}`,
+        content: element.markdownContent || "",
         risk: riskLevel,
-        evaluation: clause.evaluation,
-        reason: clause.reason,
-        recommendation: clause.recommendation,
+        evaluation: evaluation,
+        reason: element.reason || "",
+        recommendation: element.recommendation || "",
         needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
         urgentAttention: riskLevel === "high",
-        chunkNumber: clause.chunkNumber,
-        elementType: 'clauseH3',
+        chunkNumber: element.globalOriginalOrder,
+        elementType: element.elementType || 'clauseH3',
       };
     });
   }, [contract]);

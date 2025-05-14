@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import type { Doc } from "@/convex/_generated/dataModel"
+import { AuthRedirectLink } from "@/components/auth-redirect-link"
 
 // Typ direkt aus Doc verwenden
 type ContractStatusType = Doc<"contracts">["status"];
@@ -251,12 +252,12 @@ export default function Home() {
         </div>
         
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Link 
-            href="/new-analysis"
+          <AuthRedirectLink 
+            href="/neue-analyse"
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-6 rounded-lg text-lg text-center transition-all"
           >
             Neue Analyse starten
-          </Link>
+          </AuthRedirectLink>
           
           <Link 
             href="/demo"

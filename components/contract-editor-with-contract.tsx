@@ -78,11 +78,11 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
   const editorScrollAreaRef = useRef<HTMLDivElement>(null)
   const fileNameInputRef = useRef<HTMLInputElement>(null)
   const [isClient, setIsClient] = useState(false)
-  const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [isExportingDocx, setIsExportingDocx] = useState(false)
+  const [isExportingChangelog, setIsExportingChangelog] = useState(false)
   const [detailFormulationInput, setDetailFormulationInput] = useState<string>("")
 
-  const { contract, isLoading } = useContract(contractId);
+  const { contract, isLoading, error, errorMessage } = useContract(contractId);
   const updateAnalysisMutation = useMutation(api.contractMutations.updateContractAnalysis);
   const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
   const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
@@ -608,7 +608,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
         const contractMarkdownContent = currentSections
         .filter(section => !section.removed)
         .map(section => section.content)
-        .join('\n\n');
+        .join('\\n\\n');
 
         const originalFileName = contract.fileName || "Unbenannter Vertrag";
 
@@ -644,53 +644,113 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     }
   };
 
-  const handleExportPdf = async () => {
-    if (!contract) {
-        toast.error("Fehler: Vertragsdaten nicht verfügbar.");
-        return;
+  const generateChangelogMarkdown = (): string => {
+    if (history.length === 0 || !history[0].sections) {
+      return "";
     }
-    setIsExportingPdf(true);
-    toast.info("PDF-Export wird vorbereitet...", { description: "Bitte haben Sie einen Moment Geduld." });
+
+    const initialSections = history[0].sections;
+    const currentSections = history[historyIndex].sections;
+    let changelog = `# Änderungsprotokoll für Vertrag: ${contract?.fileName || 'Unbenannter Vertrag'}\n\n`;
+    let changesFound = false;
+
+    console.log("[Changelog] Starte Generierung des Changelogs...");
+    console.log(`[Changelog] Anzahl initialer Sektionen: ${initialSections.length}`);
+    console.log(`[Changelog] Anzahl aktueller Sektionen: ${currentSections.length}`);
+
+    currentSections.forEach(currentSection => {
+      if (currentSection.risk === "high" || currentSection.risk === "medium") {
+        console.log(`[Changelog] Prüfe riskante Klausel (aktuell): ID=${currentSection.id}, Titel='${currentSection.title}', Risiko=${currentSection.risk}`);
+        const initialSection = initialSections.find(initSec => initSec.id === currentSection.id);
+
+        if (initialSection) {
+          console.log(`[Changelog] Initial-Version für ID=${currentSection.id} gefunden. Wird in Changelog aufgenommen.`);
+          const originalContent = initialSection.content;
+          const currentContent = currentSection.content;
+          const riskDisplay = currentSection.risk === "high" ? "HOCH (ROT)" : "MITTEL (GELB)";
+          
+          changesFound = true;
+          changelog += `## Klausel: ${currentSection.title}\n\n`;
+          changelog += `**Ursprüngliche Bewertung:** ${riskDisplay}\n\n`;
+
+          if (currentSection.reason) {
+            changelog += `**Begründung (aus Analyse):**\n${currentSection.reason}\n\n`;
+          }
+          if (currentSection.recommendation) {
+            changelog += `**Empfehlung (aus Analyse):**\n${currentSection.recommendation}\n\n`;
+          }
+          
+          changelog += '**Ursprünglicher Text:**\n';
+          changelog += '```markdown\n';
+          changelog += `${originalContent || 'Kein ursprünglicher Inhalt verfügbar.'}\n`;
+          changelog += '```\n\n';
+
+          if (originalContent !== currentContent) {
+            changelog += '**Geänderter Text:**\n';
+            changelog += '```markdown\n';
+            changelog += `${currentContent || 'Kein aktueller Inhalt verfügbar.'}\n`;
+            changelog += '```\n\n';
+          } else {
+            changelog += `*Diese Klausel wurde bewertet, aber ihr Inhalt wurde nicht geändert.*\n\n`;
+          }
+          changelog += `----\n\n`;
+        } else {
+          console.warn(`[Changelog] KEINE Initial-Version für riskante Klausel ID=${currentSection.id} (Titel='${currentSection.title}') gefunden. Wird NICHT in Changelog aufgenommen.`);
+        }
+      }
+    });
+
+    if (!changesFound) {
+      console.log("[Changelog] Keine relevanten Änderungen oder riskanten Klauseln für den Changelog gefunden.");
+    }
+    console.log("[Changelog] Generierung abgeschlossen.");
+    return changesFound ? changelog : "";
+  };
+
+  const handleExportChangelogDocx = async () => {
+    if (!contract) {
+      toast.error("Fehler: Vertragsdaten nicht verfügbar.");
+      return;
+    }
+    setIsExportingChangelog(true);
+    toast.info("Changelog DOCX-Export wird vorbereitet...");
 
     try {
-        // 1. Markdown-Inhalt holen (nur nicht entfernte Sektionen)
-        const currentSections = history[historyIndex].sections;
-        const contractMarkdownContent = currentSections
-            .filter(section => !section.removed)
-            .map(section => section.content)
-            .join('\n\n');
+      const changelogMarkdown = generateChangelogMarkdown();
+      if (!changelogMarkdown.trim()) {
+        toast.info("Keine relevanten Änderungen oder Bewertungen (Rot/Gelb) für den Changelog gefunden.");
+        setIsExportingChangelog(false);
+        return;
+      }
 
-        const originalFileName = contract.fileName || "Unbenannter Vertrag";
+      console.log("[Changelog] Vollständiger generierter Changelog-Markdown:\n", changelogMarkdown);
 
-        // 2. API-Aufruf
-        const response = await fetch('/api/export/pdf', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                markdownContent: contractMarkdownContent,
-                fileName: originalFileName 
-            }),
-        });
+      const originalFileName = contract.fileName || "Unbenannter Vertrag";
+      const changelogFileNameBase = `${stripFileExtension(originalFileName)}_Changelog`; 
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({})); // Fehlerdetails versuchen zu lesen
-            throw new Error(`Serverfehler: ${response.status} ${response.statusText}. ${errorData?.details || ''}`);
-        }
+      const response = await fetch('/api/export/changelog-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          markdownContent: changelogMarkdown,
+          fileName: changelogFileNameBase
+        }),
+      });
 
-        // 3. Blob erhalten und herunterladen
-        const blob = await response.blob();
-        const exportFileName = stripFileExtension(originalFileName) + ".pdf";
-        downloadBlob(blob, exportFileName);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Serverfehler beim Changelog-Export: ${response.status} ${response.statusText}. ${errorData?.details || ''}`);
+      }
 
-        toast.success("PDF erfolgreich exportiert.", { description: exportFileName });
+      const blob = await response.blob();
+      downloadBlob(blob, `${changelogFileNameBase}.docx`);
+      toast.success("Changelog DOCX erfolgreich exportiert.");
 
     } catch (error) {
-        console.error("PDF Export fehlgeschlagen:", error);
-        toast.error("PDF-Export fehlgeschlagen.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+      console.error("Changelog DOCX Export fehlgeschlagen:", error);
+      toast.error("Changelog DOCX-Export fehlgeschlagen.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
     } finally {
-        setIsExportingPdf(false);
+      setIsExportingChangelog(false);
     }
   };
 
@@ -734,59 +794,48 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
     setIsEditingFileName(false);
   };
 
-  if (isLoading) {
+  // Rendere hier eine Fehlermeldung, wenn ein Fehler beim Laden des Vertrags aufgetreten ist
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Vertragsdaten werden geladen...</p>
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Fehler beim Laden</h2>
+        <p className="text-center text-muted-foreground mb-6">{errorMessage || "Der Vertrag konnte nicht geladen werden."}</p>
+        <Button
+          variant="outline"
+          onClick={() => window.location.href = "/analytik"}
+        >
+          Zurück zur Übersicht
+        </Button>
       </div>
-    );
+    )
   }
 
-  if (!contract || (history.length === 1 && history[0].sections.length === 0 && !isLoading) ) {
-     // Zeige "Keine Daten" nur an, wenn nicht mehr geladen wird und wirklich keine Sektionen da sind
-    // Oder wenn der Status ein Fehlerstatus ist
-    const isErrorStatus = contract && [
-        "failed", 
-        "stage1_chunking_failed", 
-        "stage2_structuring_failed", 
-        "failed_partial_analysis"
-    ].includes(contract?.status || '');
-    
-    const showNoDataMessage = (!contract && !isLoading) || (contract && history.length === 1 && history[0].sections.length === 0) || isErrorStatus;
+  // Zeige Ladeanzeige
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+        <p className="text-center text-muted-foreground">Vertrag wird geladen...</p>
+      </div>
+    )
+  }
 
-    if (showNoDataMessage) {
-        let title = "Keine analysierten Daten";
-        let message = "Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse läuft noch bzw. ist fehlgeschlagen. Bitte überprüfen Sie den Status oder laden Sie den Vertrag neu hoch.";
-        let badgeVariant: "destructive" | "secondary" | "outline" = "secondary";
-
-        if (!contract && !isLoading) {
-             title = "Fehler beim Laden";
-             message = `Der Vertrag mit der ID ${contractId} konnte nicht geladen werden.`;
-             badgeVariant = "destructive";
-        } else if (isErrorStatus) {
-             title = "Analyse fehlgeschlagen";
-             message = contract.errorDetails || "Bei der Analyse des Vertrags ist ein Fehler aufgetreten. Bitte überprüfen Sie die Details oder versuchen Sie es erneut.";
-             badgeVariant = "destructive";
-        } // Sonst bleibt die Standardmeldung für "Keine Daten"
-
-        return (
-            <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
-                <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">{title}</h3>
-                <p className="text-muted-foreground max-w-md">
-                    {message}
-                </p>
-                {contract && (
-                    // Verwende badgeVariant und contract.status
-                    <div className="text-sm text-muted-foreground mt-2">Status: <Badge variant={badgeVariant}>{contract.status}</Badge></div>
-                )}
-                {!contract && !isLoading && (
-                     <p className="text-sm text-destructive mt-2">Vertrag mit ID {contractId} konnte nicht geladen werden.</p>
-                )}
-            </div>
-        );
-    }
+  // Wenn kein Vertrag gefunden wurde und kein Ladefehler vorliegt
+  if (!contract && !isLoading && !error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Vertrag nicht gefunden</h2>
+        <p className="text-center text-muted-foreground mb-6">Der angeforderte Vertrag konnte nicht gefunden werden.</p>
+        <Button
+          variant="outline"
+          onClick={() => window.location.href = "/analytik"}
+        >
+          Zurück zur Übersicht
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -845,13 +894,13 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
             {/* Separate Export-Buttons */}
             {isClient && (
               <>
-                <Button variant="outline" size="sm" className="gap-1 ml-2" onClick={handleExportPdf} disabled={isExportingPdf || isExportingDocx}> 
-                    {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileIcon className="h-4 w-4" />}
-                    <span>{isExportingPdf ? "PDF..." : "Als PDF"}</span>
-                </Button>
-                <Button variant="outline" size="sm" className="gap-1 ml-1" onClick={handleExportDocx} disabled={isExportingDocx || isExportingPdf}> 
+                <Button variant="outline" size="sm" className="gap-1 ml-1" onClick={handleExportDocx} disabled={isExportingDocx || isExportingChangelog}> 
                     {isExportingDocx ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileTextIcon className="h-4 w-4" />} 
-                    <span>{isExportingDocx ? "DOCX..." : "Als DOCX"}</span>
+                    <span>{isExportingDocx ? "DOCX..." : "Vertrag DOCX"}</span>
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1 ml-1" onClick={handleExportChangelogDocx} disabled={isExportingChangelog || isExportingDocx}>
+                    {isExportingChangelog ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileIcon className="h-4 w-4" />}
+                    <span>{isExportingChangelog ? "Changelog..." : "Changelog DOCX"}</span>
                 </Button>
               </>
             )}
