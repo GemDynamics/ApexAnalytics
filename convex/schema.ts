@@ -129,6 +129,9 @@ export default defineSchema({
     totalElementsToAnalyze: v.optional(v.number()), // Gesamtzahl der Elemente aus Stufe 2
     analyzedElements: v.optional(v.number()), // Anzahl erfolgreich analysierter Elemente (Stufe 3)
 
+    // Temporäres Feld, um existierende Daten mit 'processedChunks' zu validieren
+    processedChunks: v.optional(v.any()), // TODO: Nach Datenmigration entfernen!
+
     // Bestehende Felder für Details/Fehler
     currentProcessingStepDetail: v.optional(v.string()), // Kann weiterhin genutzt werden für feinere Statusanzeige
     errorDetails: v.optional(v.string()),
