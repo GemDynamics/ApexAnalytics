@@ -235,11 +235,3 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 - Veraltetes Feld `analysisProtocol` aus der Vertragsdatenstruktur entfernt (war nicht mehr im Schema definiert und wurde durch `structuredContractElements` abgelöst).
 
 --- 
-
-[TIMESTAMP: 2024-07-16 20:05:00]
-TYPE: BUGFIX
-SCOPE: convex/schema.ts, Vercel Deployment
-DESCRIPTION: Temporarily added 'processedChunks: v.optional(v.any())' to the 'contracts' table schema in convex/schema.ts to resolve a deployment failure caused by schema validation errors on existing data. This allows documents with the legacy 'processedChunks' field to pass validation.
-REASON: Unblock Vercel deployment. Advised user to perform data migration to remove or update the 'processedChunks' field from database documents and then remove the temporary schema field.
-
---- 

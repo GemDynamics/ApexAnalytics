@@ -709,8 +709,8 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
   const handleExportChangelogDocx = async () => {
     if (!contract) {
-      toast.error("Fehler: Vertragsdaten nicht verfügbar.");
-      return;
+        toast.error("Fehler: Vertragsdaten nicht verfügbar.");
+        return;
     }
     setIsExportingChangelog(true);
     toast.info("Changelog DOCX-Export wird vorbereitet...");
@@ -725,24 +725,24 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
       console.log("[Changelog] Vollständiger generierter Changelog-Markdown:\n", changelogMarkdown);
 
-      const originalFileName = contract.fileName || "Unbenannter Vertrag";
+        const originalFileName = contract.fileName || "Unbenannter Vertrag";
       const changelogFileNameBase = `${stripFileExtension(originalFileName)}_Changelog`; 
 
       const response = await fetch('/api/export/changelog-docx', {
-        method: 'POST',
+            method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+            body: JSON.stringify({ 
           markdownContent: changelogMarkdown,
           fileName: changelogFileNameBase
-        }),
-      });
+            }),
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`Serverfehler beim Changelog-Export: ${response.status} ${response.statusText}. ${errorData?.details || ''}`);
-      }
+        }
 
-      const blob = await response.blob();
+        const blob = await response.blob();
       downloadBlob(blob, `${changelogFileNameBase}.docx`);
       toast.success("Changelog DOCX erfolgreich exportiert.");
 
@@ -823,7 +823,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
   // Wenn kein Vertrag gefunden wurde und kein Ladefehler vorliegt
   if (!contract && !isLoading && !error) {
-    return (
+        return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-bold mb-2">Vertrag nicht gefunden</h2>
@@ -834,7 +834,7 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
         >
           Zurück zur Übersicht
         </Button>
-      </div>
+            </div>
     )
   }
 
