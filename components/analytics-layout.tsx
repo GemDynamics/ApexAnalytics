@@ -2,16 +2,17 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { ChevronLeft, ChevronRight, Search, FileText, Menu, Loader2 } from "lucide-react"
+import { useState, useEffect, ReactNode } from "react"
+import { ChevronLeft, ChevronRight, Search, FileText, Menu, Loader2, PanelLeftOpen, PanelLeftClose } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ContractsList } from "@/components/contracts-list"
+import { ContractsList, type ContractListProps } from "@/components/contracts-list"
 import { Input } from "@/components/ui/input"
 import { NegotiationSimulator } from "@/components/negotiation-simulator"
 import { RiskAnalysisCharts } from "@/components/risk-analysis-charts"
 import type { Id } from "@/convex/_generated/dataModel"
 import dynamic from 'next/dynamic'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 // Dynamischer Import für ContractEditorWithContract
 const ContractEditorWithContract = dynamic(
@@ -27,114 +28,119 @@ const ContractEditorWithContract = dynamic(
   }
 )
 
+// Define width constants
+const EXPANDED_WIDTH_PX = 280;
+const COLLAPSED_WIDTH_PX = 0;
+const SEPARATOR_WIDTH_PX = 1;
+
 interface AnalyticsLayoutProps {
   contractId?: string
   initialTab?: "editor" | "risikoanalyse" | "verhandlung" 
+  children: ReactNode;
+  contracts: ContractListProps['contracts']; // Ensure this type matches what ContractsList expects
+  selectedContractId: string | undefined; // Or string, depending on usage
+  isLoading: boolean;
 }
 
-export function AnalyticsLayout({ contractId, initialTab = "editor" }: AnalyticsLayoutProps) {
-  const [isListCollapsed, setIsListCollapsed] = useState(false)
-  const [activeTab, setActiveTab] = useState<"editor" | "risikoanalyse" | "verhandlung">(initialTab)
+export function AnalyticsLayout({ contractId, initialTab = "editor", children, contracts, selectedContractId, isLoading }: AnalyticsLayoutProps) {
+  const isMobile = useIsMobile(); // Hook to determine if mobile view
+  const [isContractsListExpanded, setIsContractsListExpanded] = useState(!isMobile);
+  const [contractsListPixelWidth, setContractsListPixelWidth] = useState(
+    isMobile ? COLLAPSED_WIDTH_PX : EXPANDED_WIDTH_PX
+  );
 
-  const toggleList = () => {
-    setIsListCollapsed(!isListCollapsed)
-  }
+  useEffect(() => {
+    if (isMobile) {
+      setIsContractsListExpanded(false);
+    } else {
+      setIsContractsListExpanded(true);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isContractsListExpanded) {
+      setContractsListPixelWidth(EXPANDED_WIDTH_PX);
+    } else {
+      setContractsListPixelWidth(COLLAPSED_WIDTH_PX);
+    }
+  }, [isContractsListExpanded]);
+
+  const handleToggleContractsList = () => {
+    setIsContractsListExpanded(!isContractsListExpanded);
+  };
+
+  // Ensure contracts prop is null if undefined, as per instructions
+  const contractsForList = contracts === undefined ? null : contracts;
 
   return (
-    <div className="flex flex-col h-full min-h-screen pb-0">
-      {/* Tabs Header mit fixer Breite */}
-      <div className="border-b mb-2 w-full">
-        <Tabs
-          defaultValue="editor"
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as "editor" | "risikoanalyse" | "verhandlung")}
-          className="w-full"
-        >
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="editor" className="rounded-tl-md rounded-tr-none">
-              Vertragseditor
-            </TabsTrigger>
-            <TabsTrigger value="risikoanalyse" className="rounded-none">
-              Risikoanalyse
-            </TabsTrigger>
-            <TabsTrigger value="verhandlung" className="rounded-tr-md rounded-tl-none">
-              Verhandlungssimulator
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <div className="relative flex overflow-hidden bg-background">
+      {/* ContractsList Container */}
+      <div
+        style={{
+          width: `${contractsListPixelWidth}px`,
+          transition: 'width 0.3s ease-in-out',
+        }}
+        className="absolute top-0 left-0 h-full z-20 bg-background shadow-md" // Added bg-background and shadow for better visual separation
+      >
+        {/* Render ContractsList only if its width is > 0 to avoid rendering it collapsed if it has no collapsed view */}
+        {contractsListPixelWidth > 0 && (
+           <ContractsList
+            contracts={contractsForList}
+            selectedContractId={selectedContractId}
+            isMobile={isMobile}
+            isCollapsed={!isContractsListExpanded}
+            setIsCollapsed={(newCollapsedState: boolean) => setIsContractsListExpanded(!newCollapsedState)}
+            isLoading={isLoading}
+          />
+        )}
       </div>
 
-      {/* Main Content mit flexiblem Layout */}
-      <div className="flex flex-1 relative gap-4 overflow-hidden">
-        {/* Vertragsliste - kann ein-/ausgeklappt werden */}
+      {/* Separator Line */}
+      {!isMobile && ( // Hide separator and button on mobile if ContractsList is always collapsed
         <div
-          className={`transition-all duration-300 flex flex-col h-full ${
-            isListCollapsed ? "w-0 overflow-hidden" : "md:w-64 lg:w-72"
-          }`}
+          style={{
+            left: `${contractsListPixelWidth}px`,
+            transition: 'left 0.3s ease-in-out',
+          }}
+          className="absolute top-0 h-full z-30"
         >
-          <div className="h-full space-y-4 flex flex-col flex-grow min-h-0">
-            <div className="relative px-1 pt-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Verträge durchsuchen..." className="pl-8 w-full" />
-          </div>
-            <div className="flex-grow overflow-auto min-h-0">
-              <ContractsList />
-            </div>
-          </div>
+          <div className="w-px h-full bg-border" /> {/* Using theme border color */}
         </div>
+      )}
 
-        {/* Toggle Button für die Vertragsliste */}
-                    <Button
-          variant="outline" 
-                      size="icon"
-          className={`absolute top-1 ${isListCollapsed ? 'left-0' : 'md:left-[240px] lg:left-[272px]'} z-10 h-8 w-8 rounded-full shadow-sm border-muted-foreground/20 transition-all duration-300`}
-          onClick={toggleList}
+      {/* Toggle Button */}
+      {!isMobile && ( // Hide separator and button on mobile
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleContractsList}
+          className="absolute top-1/2 z-40 p-1" // Adjusted padding
+          style={{
+            left: `${contractsListPixelWidth -14 + SEPARATOR_WIDTH_PX}px`, // Position button relative to separator
+            transform: 'translateY(-50%) translateX(-50%)', // Center button on the line
+            transition: 'left 0.3s ease-in-out',
+          }}
+          aria-label={isContractsListExpanded ? "Collapse contracts list" : "Expand contracts list"}
         >
-          {isListCollapsed ? (
-            <Menu className="h-4 w-4" />
+          {isContractsListExpanded ? (
+            <PanelLeftClose className="h-5 w-5" />
           ) : (
-            <ChevronLeft className="h-4 w-4" />
+            <PanelLeftOpen className="h-5 w-5" />
           )}
-                    </Button>
+        </Button>
+      )}
 
-        {/* Content Area - nimmt immer volle Breite des Tab-Menüs ein */}
-        <div className="flex-1 transition-all duration-300 h-full min-w-0">
-          <Tabs value={activeTab} className="h-full">
-            <TabsContent value="editor" className="h-full mt-0">
-              {contractId ? (
-                <div className="h-full">
-                  <ContractEditorWithContract contractId={contractId as Id<"contracts">} />
-              </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  Bitte wählen Sie einen Vertrag aus, um den Vertragseditor zu starten.
-            </div>
-          )}
-            </TabsContent>
-            <TabsContent value="risikoanalyse" className="h-full mt-0">
-              {contractId ? (
-                <div className="p-4 h-full">
-                  <RiskAnalysisCharts contractId={contractId as Id<"contracts">} />
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  Bitte wählen Sie einen Vertrag aus, um die Risikoanalyse zu starten.
-        </div>
-              )}
-              </TabsContent>
-            <TabsContent value="verhandlung" className="h-full mt-0">
-                {contractId ? (
-                <div className="h-full">
-                    <NegotiationSimulator contractId={contractId as Id<"contracts">} />
-                  </div>
-                ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    Bitte wählen Sie einen Vertrag aus, um Verhandlungen zu starten.
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-        </div>
+      {/* Main Content Area */}
+      <div
+        style={{
+          marginLeft: isMobile ? `${COLLAPSED_WIDTH_PX}px` : `${contractsListPixelWidth + SEPARATOR_WIDTH_PX}px`,
+          transition: 'margin-left 0.3s ease-in-out',
+        }}
+        className="h-full flex-grow overflow-y-auto" // Removed p-4/md:p-6, will be handled by child page or layout
+      >
+        {/* Padding should be inside this div if needed globally, or handled by the page consuming this layout */}
+        {/* Example: <div className="p-4 md:p-6 h-full">{children}</div> */}
+        {children}
       </div>
     </div>
   )

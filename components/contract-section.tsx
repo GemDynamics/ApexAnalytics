@@ -168,7 +168,7 @@ export function ContractSection({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none break-words" onClick={(e) => {
+          <div className="prose prose-sm dark:prose-invert break-words" onClick={(e) => {
             e.stopPropagation();
             // Nur aktivieren, wenn die Sektion nicht schon aktiv ist
             if (!isActive) {

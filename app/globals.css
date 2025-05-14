@@ -85,3 +85,61 @@
   70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
   100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
+
+/* Responsive Tiptap Content */
+.ProseMirror {
+  /* Verhindert, dass das Editor-Feld selbst die Breite seines Containers überschreitet */
+  max-width: 100%;
+  overflow-x: hidden; /* Verhindert, dass der Editor selbst horizontal scrollt, wenn der Inhalt zu breit ist */
+}
+
+.ProseMirror p,
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6,
+.ProseMirror li {
+  /* Erlaubt den Umbruch von sehr langen Wörtern oder URLs, um Überlaufen zu verhindern */
+  word-break: break-word;
+  overflow-wrap: break-word; /* Alias für word-wrap, bessere Kompatibilität */
+  /* Optional: hyphens: auto; für automatische Silbentrennung, benötigt Browsersupport und ggf. lang-Attribut */
+}
+
+.ProseMirror table {
+  /* Lässt Tabellen horizontal scrollen, wenn sie breiter als der Container sind */
+  display: block; /* Wichtig, damit max-width und overflow-x funktionieren */
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse; /* Für besseres Aussehen */
+  width: 100%; /* Versucht, die Tabelle an die volle Breite anzupassen, aber nicht breiter als max-width */
+} 
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid hsl(var(--border)); /* Beispielhafter Rand, an Ihr Theme anpassen */
+  padding: 0.5em;
+  min-width: 50px; /* Verhindert, dass Zellen zu schmal werden */
+}
+
+.ProseMirror pre {
+  /* Lässt Codeblöcke horizontal scrollen */
+  max-width: 100%;
+  overflow-x: auto;
+  background-color: hsl(var(--muted)); /* Beispielhafter Hintergrund */
+  color: hsl(var(--muted-foreground)); /* Beispielhafte Textfarbe */
+  padding: 0.75em 1em;
+  border-radius: var(--radius);
+  white-space: pre; /* Behält Leerzeichen und Umbrüche bei, erlaubt aber Scrollen statt Umbruch von Codezeilen */
+}
+
+.ProseMirror img {
+  /* Stellt sicher, dass Bilder nicht breiter als ihr Container sind */
+  max-width: 100%;
+  height: auto;
+  display: block; /* Verhindert zusätzliche Abstände unter dem Bild */
+}
+
+/* Wenn Sie spezifische Klassen für übergroße Elemente im Editor haben oder einführen, */
+/* können Sie diese hier gezielt ansprechen. */

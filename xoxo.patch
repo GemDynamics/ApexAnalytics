@@ -1,0 +1,2834 @@
+diff --git a/app/analytik/[id]/page.tsx b/app/analytik/[id]/page.tsx
+index 8a266fd..cee9483 100644
+--- a/app/analytik/[id]/page.tsx
++++ b/app/analytik/[id]/page.tsx
+@@ -3,6 +3,12 @@
+ import React from "react";
+ import { Id } from "@/convex/_generated/dataModel";
+ import { AnalyticsLayout } from "@/components/analytics-layout";
++import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
++import { ContractEditorWithContract } from "@/components/contract-editor-with-contract";
++import { RiskAnalysisCharts } from "@/components/risk-analysis-charts";
++import { NegotiationSimulator } from "@/components/negotiation-simulator";
++import { api } from "@/convex/_generated/api";
++import { useQuery } from "convex/react";
+ 
+ interface ContractAnalysisPageProps {
+   params: Promise<{
+@@ -19,7 +25,43 @@ export default function ContractAnalysisPage({ params }: ContractAnalysisPagePro
+   // Gib nur das Layout zurück und übergebe die ID.
+   // Das Layout und seine Kindkomponenten (Editor, Charts etc.)
+   // sind selbst für das Laden ihrer Daten verantwortlich.
++  const contracts = useQuery(api.contracts.getAllContracts);
++
++  // TODO: initialTab Logik basierend auf URL oder State Management implementieren
++  const initialTab = "editor";
++
+   return (
+-    <AnalyticsLayout contractId={contractId} />
++    <AnalyticsLayout contracts={contracts || null} selectedContractId={contractId}>
++      <div className="w-full h-full p-4 md:p-6">
++        <Tabs defaultValue={initialTab} className="w-full h-full flex flex-col">
++          <TabsList className="sticky top-0 bg-background z-10 grid grid-cols-3 w-full">
++            <TabsTrigger value="editor">Vertragseditor</TabsTrigger>
++            <TabsTrigger value="risikoanalyse">Risikoanalyse</TabsTrigger>
++            <TabsTrigger value="verhandlung">Verhandlung</TabsTrigger>
++          </TabsList>
++          <TabsContent value="editor" className="flex-grow overflow-y-auto mt-0">
++            {contractId ? (
++              <ContractEditorWithContract contractId={contractId} />
++            ) : (
++              <div className="text-center text-muted-foreground py-8">Kein Vertrag ausgewählt.</div>
++            )}
++          </TabsContent>
++          <TabsContent value="risikoanalyse" className="flex-grow overflow-y-auto mt-0">
++            {contractId ? (
++                <RiskAnalysisCharts contractId={contractId} />
++            ) : (
++              <div className="text-center text-muted-foreground py-8">Kein Vertrag ausgewählt.</div>
++            )}
++          </TabsContent>
++          <TabsContent value="verhandlung" className="flex-grow overflow-y-auto mt-0">
++            {contractId ? (
++                <NegotiationSimulator contractId={contractId} />
++            ) : (
++              <div className="text-center text-muted-foreground py-8">Kein Vertrag ausgewählt.</div>
++            )}
++          </TabsContent>
++        </Tabs>
++      </div>
++    </AnalyticsLayout>
+   );
+ }
+diff --git a/back_up_restore/analytics-layout.tsx b/back_up_restore/analytics-layout.tsx
+deleted file mode 100644
+index 52cb96b..0000000
+--- a/back_up_restore/analytics-layout.tsx
++++ /dev/null
+@@ -1,130 +0,0 @@
+-"use client"
+-
+-import type React from "react"
+-
+-import { useState } from "react"
+-import { ChevronLeft, ChevronRight, Search, FileText, Menu } from "lucide-react"
+-import { Button } from "@/components/ui/button"
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+-import { ContractsList } from "@/components/contracts-list"
+-import { Input } from "@/components/ui/input"
+-import { NegotiationSimulator } from "@/components/negotiation-simulator"
+-import { ContractEditorWithContract } from "@/components/contract-editor-with-contract"
+-import { RiskAnalysisCharts } from "@/components/risk-analysis-charts"
+-import { useContract } from "@/hooks/useConvex"
+-import type { Id } from "@/convex/_generated/dataModel"
+-
+-interface AnalyticsLayoutProps {
+-  children: React.ReactNode
+-  contractId?: string
+-  initialTab?: "editor" | "risikoanalyse" | "verhandlung" 
+-}
+-
+-export function AnalyticsLayout({ children, contractId, initialTab = "editor" }: AnalyticsLayoutProps) {
+-  const [isListCollapsed, setIsListCollapsed] = useState(false)
+-  const [activeTab, setActiveTab] = useState<"editor" | "risikoanalyse" | "verhandlung">(initialTab)
+-  const { contract } = useContract(contractId as Id<"contracts"> | undefined)
+-
+-  const toggleList = () => {
+-    setIsListCollapsed(!isListCollapsed)
+-  }
+-
+-  return (
+-    <div className="flex flex-col h-full min-h-screen pb-0">
+-      {/* Tabs Header mit fixer Breite */}
+-      <div className="border-b mb-2 w-full">
+-        <Tabs
+-          defaultValue="editor"
+-          value={activeTab}
+-          onValueChange={(value) => setActiveTab(value as "editor" | "risikoanalyse" | "verhandlung")}
+-          className="w-full"
+-        >
+-          <TabsList className="w-full grid grid-cols-3">
+-            <TabsTrigger value="editor" className="rounded-tl-md rounded-tr-none">
+-              Vertragseditor
+-            </TabsTrigger>
+-            <TabsTrigger value="risikoanalyse" className="rounded-none">
+-              Risikoanalyse
+-            </TabsTrigger>
+-            <TabsTrigger value="verhandlung" className="rounded-tr-md rounded-tl-none">
+-              Verhandlungssimulator
+-            </TabsTrigger>
+-          </TabsList>
+-        </Tabs>
+-      </div>
+-
+-      {/* Main Content mit flexiblem Layout */}
+-      <div className="flex flex-1 relative gap-4 overflow-hidden">
+-        {/* Vertragsliste - kann ein-/ausgeklappt werden */}
+-        <div
+-          className={`transition-all duration-300 flex flex-col h-full ${
+-            isListCollapsed ? "w-0 overflow-hidden" : "w-full md:w-64 lg:w-72"
+-          }`}
+-        >
+-          <div className="h-full space-y-4 flex flex-col flex-grow min-h-0">
+-            <div className="relative px-1 pt-1">
+-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+-              <Input type="search" placeholder="Verträge durchsuchen..." className="pl-8 w-full" />
+-          </div>
+-            <div className="flex-grow overflow-auto min-h-0">
+-              <ContractsList />
+-            </div>
+-          </div>
+-        </div>
+-
+-        {/* Toggle Button für die Vertragsliste */}
+-                    <Button
+-          variant="outline" 
+-                      size="icon"
+-          className={`absolute top-1 ${isListCollapsed ? 'left-0' : 'md:left-[240px] lg:left-[272px]'} z-10 h-8 w-8 rounded-full shadow-sm border-muted-foreground/20 transition-all duration-300`}
+-          onClick={toggleList}
+-        >
+-          {isListCollapsed ? (
+-            <Menu className="h-4 w-4" />
+-          ) : (
+-            <ChevronLeft className="h-4 w-4" />
+-          )}
+-                    </Button>
+-
+-        {/* Content Area - nimmt immer volle Breite des Tab-Menüs ein */}
+-        <div className="flex-1 transition-all duration-300 h-full">
+-          <Tabs value={activeTab} className="h-full">
+-            <TabsContent value="editor" className="h-full mt-0">
+-              {contractId ? (
+-                <div className="h-full">
+-                  <ContractEditorWithContract contractId={contractId as Id<"contracts">} />
+-              </div>
+-              ) : (
+-                <div className="text-center text-muted-foreground py-8">
+-                  Bitte wählen Sie einen Vertrag aus, um den Vertragseditor zu starten.
+-            </div>
+-          )}
+-            </TabsContent>
+-            <TabsContent value="risikoanalyse" className="h-full mt-0">
+-              {contractId && contract ? (
+-                <div className="p-4 h-full">
+-                  <RiskAnalysisCharts contractId={contractId as Id<"contracts">} />
+-                </div>
+-              ) : (
+-                <div className="text-center text-muted-foreground py-8">
+-                  Bitte wählen Sie einen Vertrag aus, um die Risikoanalyse zu starten.
+-        </div>
+-              )}
+-              </TabsContent>
+-            <TabsContent value="verhandlung" className="h-full mt-0">
+-                {contractId ? (
+-                <div className="h-full">
+-                    <NegotiationSimulator contractId={contractId as Id<"contracts">} />
+-                  </div>
+-                ) : (
+-                  <div className="text-center text-muted-foreground py-8">
+-                    Bitte wählen Sie einen Vertrag aus, um Verhandlungen zu starten.
+-                  </div>
+-                )}
+-              </TabsContent>
+-            </Tabs>
+-        </div>
+-      </div>
+-    </div>
+-  )
+-}
+diff --git a/back_up_restore/contract-clauses.tsx b/back_up_restore/contract-clauses.tsx
+deleted file mode 100644
+index ee3d52c..0000000
+--- a/back_up_restore/contract-clauses.tsx
++++ /dev/null
+@@ -1,112 +0,0 @@
+-"use client"
+-
+-import { useState } from "react"
+-import { Badge } from "@/components/ui/badge"
+-import { AlertTriangle, CheckCircle, AlertCircle, ChevronDown } from "lucide-react"
+-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+-import type { Doc } from "@/convex/_generated/dataModel"
+-
+-// Typdefinition für eine einzelne Klausel aus dem analysisProtocol
+-type AnalysisClause = NonNullable<Doc<"contracts">["analysisProtocol"]>[number];
+-
+-interface ContractClausesProps {
+-  clauses: AnalysisClause[];
+-}
+-
+-export function ContractClauses({ clauses = [] }: ContractClausesProps) {
+-  const [openClauseId, setOpenClauseId] = useState<string | null>(null);
+-
+-  // Hilfsfunktionen für Risikobewertung (adaptiert)
+-  const getRiskIcon = (evaluation: string) => {
+-    switch (evaluation.toLowerCase()) {
+-      case "rot":
+-        return <AlertTriangle className="h-5 w-5 text-red-500" />;
+-      case "gelb":
+-        return <AlertCircle className="h-5 w-5 text-amber-500" />;
+-      case "grün":
+-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+-      default:
+-        return <AlertCircle className="h-5 w-5 text-gray-500" />; // Für "Fehler" oder unbekannt
+-    }
+-  };
+-
+-  const getRiskColor = (evaluation: string) => {
+-    switch (evaluation.toLowerCase()) {
+-      case "rot":
+-        return "bg-red-50 border border-red-200";
+-      case "gelb":
+-        return "bg-amber-50 border border-amber-200";
+-      case "grün":
+-        return "bg-green-50 border border-green-200";
+-      default:
+-        return "bg-gray-50 border border-gray-200";
+-    }
+-  };
+-
+-  const getRiskLabel = (evaluation: string) => {
+-    switch (evaluation.toLowerCase()) {
+-      case "rot": return "Hohes Risiko";
+-      case "gelb": return "Mittleres Risiko";
+-      case "grün": return "Niedriges Risiko";
+-      case "fehler": return "Fehler bei Analyse";
+-      default: return "Unbekannt";
+-    }
+-  };
+-
+-  // Eindeutige ID für jede Klausel generieren (Index + Text als Fallback)
+-  const getClauseKey = (clause: AnalysisClause, index: number): string => {
+-    return `${index}-${clause.chunkNumber || '0'}-${clause.clauseText.substring(0, 10)}`;
+-  };
+-
+-  return (
+-    <div className="rounded-lg border shadow-sm">
+-      <div className="divide-y">
+-        {clauses.map((clause, index) => {
+-          const clauseKey = getClauseKey(clause, index);
+-          return (
+-            <Collapsible
+-              key={clauseKey}
+-              open={openClauseId === clauseKey}
+-              onOpenChange={() => setOpenClauseId(openClauseId === clauseKey ? null : clauseKey)}
+-            >
+-              <CollapsibleTrigger className="w-full text-left p-4 hover:bg-muted/50">
+-                <div className="flex items-center justify-between">
+-                  <div className="flex items-center gap-3">
+-                    {getRiskIcon(clause.evaluation)}
+-                    <span className="font-medium">Klausel (Chunk {clause.chunkNumber || 'N/A'})</span>
+-                  </div>
+-                  <div className="flex items-center gap-2">
+-                    <Badge variant={clause.evaluation.toLowerCase() === 'rot' ? 'destructive' : clause.evaluation.toLowerCase() === 'gelb' ? 'outline' : 'default'}
+-                           className={clause.evaluation.toLowerCase() === 'gelb' ? 'bg-amber-100 text-amber-700 border-amber-200' : clause.evaluation.toLowerCase() === 'grün' ? 'bg-green-500 text-white hover:bg-green-600' : ''}
+-                    >
+-                      {getRiskLabel(clause.evaluation)}
+-                    </Badge>
+-                    <ChevronDown
+-                      className={`h-4 w-4 transition-transform ${openClauseId === clauseKey ? "rotate-180" : ""}`}
+-                    />
+-                  </div>
+-                </div>
+-              </CollapsibleTrigger>
+-              <CollapsibleContent>
+-                <div className="space-y-4 p-4 pt-0">
+-                  <div className="rounded-md border p-3">
+-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Klauseltext:</h4>
+-                    <p className="text-sm whitespace-pre-wrap">{clause.clauseText}</p>
+-                  </div>
+-                  <div className={`rounded-md border p-3 text-gray-900 dark:text-gray-900 ${getRiskColor(clause.evaluation)}`}>
+-                    <h4 className="text-sm font-medium mb-1">Begründung ({getRiskLabel(clause.evaluation)}):</h4>
+-                    <p className="text-sm whitespace-pre-wrap">{clause.reason}</p>
+-                  </div>
+-                  <div className="rounded-md border p-3 bg-primary/5">
+-                    <h4 className="text-sm font-medium mb-1">Empfehlung:</h4>
+-                    <p className="text-sm whitespace-pre-wrap">{clause.recommendation}</p>
+-                  </div>
+-                </div>
+-              </CollapsibleContent>
+-            </Collapsible>
+-          );
+-        })}
+-      </div>
+-    </div>
+-  );
+-}
+diff --git a/back_up_restore/contract-detail.tsx b/back_up_restore/contract-detail.tsx
+deleted file mode 100644
+index 383b10d..0000000
+--- a/back_up_restore/contract-detail.tsx
++++ /dev/null
+@@ -1,774 +0,0 @@
+-"use client"
+-
+-import { useState } from "react"
+-import { useContract } from "@/hooks/useConvex"
+-import { Id } from "@/convex/_generated/dataModel"
+-import { Skeleton } from "@/components/ui/skeleton"
+-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+-import { ContractClauses } from "./contract-clauses"
+-import { RiskAnalysisCharts } from "./risk-analysis-charts"
+-import { Download, Share, AlertTriangle, AlertCircle, CheckCircle, ChevronDown, Send, Loader2 } from "lucide-react"
+-import { Button } from "@/components/ui/button"
+-import { Progress } from "@/components/ui/progress"
+-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+-import { Badge } from "@/components/ui/badge"
+-import { useMutation, useAction } from "convex/react"
+-import { api } from "@/convex/_generated/api"
+-import { toast } from "sonner"
+-import {
+-  Bar,
+-  BarChart,
+-  Cell,
+-  Pie,
+-  PieChart,
+-  XAxis,
+-  YAxis,
+-  CartesianGrid,
+-  ResponsiveContainer,
+-  Radar,
+-  RadarChart,
+-  PolarGrid,
+-  PolarAngleAxis,
+-  PolarRadiusAxis,
+-} from "recharts"
+-import { ChartAnimationWrapper } from "@/components/chart-animation-wrapper"
+-
+-interface ContractDetailProps {
+-  contractId: Id<"contracts">;
+-  initialTab?: "analyse" | "verhandlung" | "editor";
+-}
+-
+-// Erweitere den Typ für Klauseln, um alle fehlenden Eigenschaften hinzuzufügen
+-interface EnhancedClause {
+-  id?: number;
+-  chunkNumber?: number;
+-  clauseText: string;
+-  content?: string; // Fallback zu clauseText
+-  evaluation: string;
+-  risk?: "high" | "medium" | "low" | "error"; // Abgeleitet aus evaluation
+-  reason: string;
+-  recommendation: string;
+-  title?: string;
+-  section?: string;
+-}
+-
+-export function ContractDetail({ contractId, initialTab = "analyse" }: ContractDetailProps) {
+-  const { contract, isLoading } = useContract(contractId);
+-  const [activeTab, setActiveTab] = useState<"analyse" | "verhandlung" | "editor" | "klauseln" | "risiko">(initialTab);
+-  const [openClause, setOpenClause] = useState<number | null>(null);
+-  const [optimizingClauseId, setOptimizingClauseId] = useState<number | null>(null);
+-  const [generatingAlternativesForClauseId, setGeneratingAlternativesForClauseId] = useState<number | null>(null);
+-  const [customFormulation, setCustomFormulation] = useState("");
+-  const [alternativeFormulations, setAlternativeFormulations] = useState<string[]>([]);
+-  
+-  // KI-Optimierungsfunktion
+-  const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
+-  // Neue Funktion für alternative Formulierungen
+-  const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
+-
+-  const handleOptimizeWithAI = async (clauseText: string) => {
+-    if (!clauseText.trim()) {
+-      toast.info("Bitte geben Sie eine Formulierung ein.");
+-      return;
+-    }
+-    
+-    const clauseId = openClause;
+-    if (clauseId === null) return;
+-    
+-    setOptimizingClauseId(clauseId);
+-    try {
+-      const alternatives = await optimizeClauseAction({ clauseText });
+-      
+-      if (alternatives && alternatives.length > 0) {
+-        // Setze die erste Alternative als benutzerdefinierte Formulierung
+-        setCustomFormulation(alternatives[0]);
+-        toast.success(`KI-Vorschlag generiert!`);
+-      } else {
+-        toast.info("KI konnte keine Alternativen für diesen Text finden.");
+-      }
+-    } catch (error) {
+-      console.error("Fehler bei der KI-Optimierung:", error);
+-      toast.error("Fehler bei der KI-Optimierung", { 
+-        description: error instanceof Error ? error.message : "Unbekannter Fehler" 
+-      });
+-    } finally {
+-      setOptimizingClauseId(null);
+-    }
+-  };
+-
+-  // Neue Funktion zum Generieren von Alternativen
+-  const handleGenerateAlternatives = async (clauseText: string) => {
+-    if (!clauseText.trim()) {
+-      toast.info("Keine Klausel zum Generieren von Alternativen vorhanden.");
+-      return;
+-    }
+-    
+-    const clauseId = openClause;
+-    if (clauseId === null) return;
+-    
+-    setGeneratingAlternativesForClauseId(clauseId);
+-    try {
+-      const alternatives = await generateAlternativesAction({ clauseText });
+-      
+-      if (alternatives && alternatives.length > 0) {
+-        setAlternativeFormulations(alternatives);
+-        toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
+-      } else {
+-        toast.info("KI konnte keine Alternativen für diesen Text generieren.");
+-      }
+-    } catch (error) {
+-      console.error("Fehler bei der Generierung von Alternativen:", error);
+-      toast.error("Fehler bei der Generierung von Alternativen", { 
+-        description: error instanceof Error ? error.message : "Unbekannter Fehler" 
+-      });
+-    } finally {
+-      setGeneratingAlternativesForClauseId(null);
+-    }
+-  };
+-
+-  // Typkonvertierungsfunktion für getEnhancedClauses
+-  const getEnhancedClauses = (): EnhancedClause[] => {
+-    if (!contract?.analysisProtocol) return [];
+-    
+-    return contract.analysisProtocol.map((clause, index) => {
+-      // Wandle die Evaluation in einen risk-Wert um
+-      let risk: "high" | "medium" | "low" | "error" = "low";
+-      switch (clause.evaluation.toLowerCase()) {
+-        case "rot":
+-          risk = "high";
+-          break;
+-        case "gelb":
+-          risk = "medium";
+-          break;
+-        case "grün":
+-          risk = "low";
+-          break;
+-        case "fehler":
+-          risk = "error";
+-          break;
+-      }
+-      
+-      // Generiere einen Titel, wenn keiner vorhanden ist
+-      const title = `Klausel ${index + 1}`;
+-      
+-      return {
+-        ...clause,
+-        id: index, // Verwende index als id
+-        content: clause.clauseText, // Map claustText zu content für die UI
+-        risk,
+-        title,
+-        section: `Abschnitt ${clause.chunkNumber || 'N/A'}`
+-      };
+-    });
+-  };
+-
+-  if (isLoading) {
+-    return (
+-      <Card>
+-        <CardHeader>
+-          <Skeleton className="h-6 w-3/4" />
+-          <Skeleton className="h-4 w-1/2 mt-2" />
+-        </CardHeader>
+-        <CardContent>
+-          <Skeleton className="h-40 w-full" />
+-        </CardContent>
+-      </Card>
+-    );
+-  }
+-
+-  if (!contract) {
+-    return (
+-      <Card>
+-        <CardHeader>
+-          <CardTitle>Fehler</CardTitle>
+-        </CardHeader>
+-        <CardContent>
+-          <p className="text-muted-foreground">Vertrag nicht gefunden.</p>
+-        </CardContent>
+-      </Card>
+-    );
+-  }
+-
+-  const enhancedClauses = getEnhancedClauses();
+-  
+-  // Standardwerte für fehlende Eigenschaften
+-  const riskScore = 75; // Standardwert
+-  const negotiationProbability = 65; // Standardwert
+-
+-  const riskDistributionData = [
+-    { name: "Hohes Risiko", value: 2, color: "#b91c1c" }, // Darker red
+-    { name: "Mittleres Risiko", value: 2, color: "#d97706" }, // Darker amber
+-    { name: "Niedriges Risiko", value: 1, color: "#15803d" }, // Darker green
+-  ]
+-
+-  const riskCategoryData = [
+-    { category: "Vertragsstrafen", risk: 85, fill: "#b91c1c" },
+-    { category: "Haftung", risk: 80, fill: "#b91c1c" },
+-    { category: "Zahlungsbedingungen", risk: 55, fill: "#d97706" },
+-    { category: "Kündigung", risk: 50, fill: "#d97706" },
+-    { category: "Gewährleistung", risk: 25, fill: "#15803d" },
+-  ]
+-
+-  const getRiskIcon = (risk: string) => {
+-    switch (risk) {
+-      case "high":
+-        return <AlertTriangle className="h-5 w-5 text-red-500" />
+-      case "medium":
+-        return <AlertCircle className="h-5 w-5 text-amber-500" />
+-      case "low":
+-        return <CheckCircle className="h-5 w-5 text-green-500" />
+-      default:
+-        return null
+-    }
+-  }
+-
+-  const getRiskColor = (risk: string) => {
+-    switch (risk) {
+-      case "high":
+-        return "bg-red-50 text-red-700 border-red-200"
+-      case "medium":
+-        return "bg-amber-50 text-amber-700 border-amber-200"
+-      case "low":
+-        return "bg-green-50 text-green-700 border-green-200"
+-      default:
+-        return ""
+-    }
+-  }
+-
+-  const getRiskLabel = (risk: string) => {
+-    switch (risk) {
+-      case "high":
+-        return "Hohes Risiko"
+-      case "medium":
+-        return "Mittleres Risiko"
+-      case "low":
+-        return "Niedriges Risiko"
+-      default:
+-        return ""
+-    }
+-  }
+-
+-  const getProgressColor = (score: number) => {
+-    if (score > 66) return "bg-red-700"
+-    if (score > 33) return "bg-amber-600"
+-    return "bg-green-700"
+-  }
+-
+-  const getNegotiationColor = (probability: number) => {
+-    if (probability < 50) return "bg-red-700"
+-    if (probability < 75) return "bg-amber-600"
+-    return "bg-green-700"
+-  }
+-
+-  const addToContractEditor = (clause: any) => {
+-    // This would typically update the contract editor with the clause
+-    console.log("Adding to contract editor:", clause)
+-
+-    // Show a notification to the user
+-    toast.success(`Klausel "${clause.title}" wurde zum Vertragseditor hinzugefügt.`)
+-
+-    // Navigate to the editor tab
+-    // In a real implementation, this would use router.push or a similar navigation method
+-    const editorTab = document.querySelector('[value="editor"]') as HTMLElement
+-    if (editorTab) {
+-      editorTab.click()
+-    }
+-  }
+-
+-  const handleTabValueChange = (value: string) => {
+-    // Type assertion, da wir wissen, dass der Tab-Wert einem gültigen Tab-Wert entspricht
+-    setActiveTab(value as typeof activeTab);
+-  };
+-
+-  return (
+-    <Card className="h-full flex flex-col">
+-      <CardHeader>
+-        <CardTitle>{contract.fileName}</CardTitle>
+-        <CardDescription>
+-          Hochgeladen am {new Date(contract.uploadedAt).toLocaleDateString('de-DE')} - Status: {contract.status}
+-        </CardDescription>
+-      </CardHeader>
+-      <CardContent className="flex-grow overflow-hidden">
+-        {enhancedClauses.length > 0 ? (
+-           <ContractClauses clauses={contract.analysisProtocol || []} />
+-        ) : (
+-          <p className="text-muted-foreground p-4 text-center">
+-            {contract.status === 'completed' ? 'Keine Klauseln zur Überprüfung gefunden.' : 'Analyse läuft oder ist fehlgeschlagen.'}
+-          </p>
+-        )}
+-        <Tabs defaultValue="klauseln" className="p-6" value={activeTab} onValueChange={handleTabValueChange}>
+-        <TabsList className="grid w-full grid-cols-3 mb-6">
+-          <TabsTrigger value="klauseln">Vertragsklauseln</TabsTrigger>
+-          <TabsTrigger value="risiko">Risikoanalyse</TabsTrigger>
+-          <TabsTrigger value="verhandlung">Verhandlungschancen</TabsTrigger>
+-        </TabsList>
+-
+-        <TabsContent value="klauseln" className="space-y-6">
+-          <div className="rounded-lg border shadow-sm">
+-            <div className="divide-y">
+-                {enhancedClauses.map((clause) => (
+-                <Collapsible
+-                  key={clause.id}
+-                  open={openClause === clause.id}
+-                  onOpenChange={() => {
+-                    const newClauseId = openClause === clause.id ? null : (clause.id ?? null);
+-                    setOpenClause(newClauseId);
+-                    
+-                    // Wenn eine Karte aufgeklappt wird, generiere automatisch Alternativen
+-                    if (newClauseId !== null) {
+-                      handleGenerateAlternatives(clause.clauseText);
+-                    }
+-                  }}
+-                >
+-                  <CollapsibleTrigger className="w-full">
+-                    <div className="flex cursor-pointer items-center justify-between p-4 hover:bg-muted/50 w-full text-left">
+-                      <div className="flex items-center gap-3">
+-                        {getRiskIcon(clause.risk || "low")}
+-                        <div>
+-                          <p className="font-medium">{clause.title}</p>
+-                          <p className="text-sm text-muted-foreground">{clause.section}</p>
+-                        </div>
+-                      </div>
+-                      <ChevronDown
+-                        className={`h-4 w-4 transition-transform ${openClause === clause.id ? "rotate-180" : ""}`}
+-                      />
+-                    </div>
+-                  </CollapsibleTrigger>
+-                  <CollapsibleContent>
+-                    <div className="space-y-4 p-4 pt-0">
+-                      <div className="rounded-md border p-3">
+-                        <h4 className="text-sm font-medium text-muted-foreground mb-1">Klauseltext:</h4>
+-                        <p className="text-sm">{clause.content || clause.clauseText}</p>
+-                      </div>
+-                      <div
+-                        className={`rounded-md border p-3 text-gray-900 dark:text-gray-900 ${getRiskColor(clause.risk || "low")}`}
+-                      >
+-                        <div className="mb-1 flex items-center gap-2">
+-                          <span className="font-medium">{getRiskLabel(clause.risk || "low")}</span>
+-                        </div>
+-                        <h4 className="text-sm font-medium mb-1">Begründung:</h4>
+-                        <p className="text-sm">{clause.reason}</p>
+-                      </div>
+-                      <div className="rounded-md border p-3 bg-primary/5">
+-                        <h4 className="text-sm font-medium mb-1">Verhandlungsvorschlag:</h4>
+-                        <p className="text-sm">
+-                          {clause.risk === "high"
+-                            ? "Diese Klausel sollte neu verhandelt werden. Wir empfehlen eine deutliche Anpassung der Bedingungen."
+-                            : clause.risk === "medium"
+-                              ? "Diese Klausel sollte angepasst werden. Wir empfehlen moderate Änderungen zur Risikominimierung."
+-                              : "Diese Klausel ist akzeptabel, könnte aber bei Gelegenheit optimiert werden."}
+-                        </p>
+-                        {clause.risk === "high" && (
+-                          <div className="mt-2 p-2 bg-background rounded border border-primary/20">
+-                            <p className="text-sm font-medium text-primary">Alternativer Formulierungsvorschlag:</p>
+-                            <p className="text-sm mt-1">
+-                              {clause.title === "Vertragsstrafen"
+-                                ? "Bei Überschreitung der vereinbarten Fertigstellungstermine wird eine Vertragsstrafe in Höhe von 0,1% der Auftragssumme pro Werktag, maximal jedoch 5% der Auftragssumme, fällig."
+-                                : clause.title === "Haftungsbegrenzung"
+-                                  ? "Der Auftragnehmer haftet für Schäden, die durch seine Leistungen verursacht werden, bis zur Höhe der Auftragssumme. Für Folgeschäden und entgangenen Gewinn ist die Haftung ausgeschlossen, soweit gesetzlich zulässig."
+-                                  : "Alternativer Formulierungsvorschlag würde hier erscheinen."}
+-                            </p>
+-                          </div>
+-                        )}
+-                      </div>
+-
+-                      <div className="space-y-2 mt-3">
+-                        <h4 className="text-sm font-medium mb-1">Benutzerdefinierte Formulierung:</h4>
+-                        <div className="relative">
+-                          <textarea
+-                            placeholder="Geben Sie Ihre eigene Formulierung für diese Klausel ein..."
+-                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[100px]"
+-                            value={clause.id === openClause ? customFormulation : ""}
+-                            onChange={(e) => setCustomFormulation(e.target.value)}
+-                          />
+-                          <div className="flex gap-2 mt-2 justify-end">
+-                            <Button size="sm" variant="outline" className="gap-1">
+-                              <Send className="h-4 w-4" />
+-                              <span>Einreichen</span>
+-                            </Button>
+-                            <Button 
+-                              size="sm" 
+-                              className="gap-1"
+-                              disabled={optimizingClauseId === clause.id}
+-                              onClick={() => handleOptimizeWithAI(clause.clauseText)}
+-                            >
+-                              {optimizingClauseId === clause.id ? (
+-                                <Loader2 className="h-4 w-4 animate-spin" />
+-                              ) : (
+-                                <svg
+-                                  xmlns="http://www.w3.org/2000/svg"
+-                                  viewBox="0 0 24 24"
+-                                  fill="none"
+-                                  stroke="currentColor"
+-                                  strokeWidth="2"
+-                                  strokeLinecap="round"
+-                                  strokeLinejoin="round"
+-                                  className="h-4 w-4"
+-                                >
+-                                  <path d="M12 8V4H8" />
+-                                  <rect width="16" height="12" x="4" y="8" rx="2" />
+-                                  <path d="M2 14h2" />
+-                                  <path d="M20 14h2" />
+-                                  <path d="M15 13v2" />
+-                                  <path d="M9 13v2" />
+-                                </svg>
+-                              )}
+-                              <span>{optimizingClauseId === clause.id ? "Optimiere..." : "Mit KI optimieren"}</span>
+-                            </Button>
+-                          </div>
+-                        </div>
+-                      </div>
+-
+-                      <div className="flex gap-2 pt-2">
+-                        <Button size="sm" variant="outline" onClick={() => addToContractEditor(clause)}>
+-                          Zum Vertragseditor hinzufügen
+-                        </Button>
+-                        <Button 
+-                          size="sm"
+-                          disabled={generatingAlternativesForClauseId === clause.id}
+-                          onClick={() => handleGenerateAlternatives(clause.clauseText)}
+-                        >
+-                          {generatingAlternativesForClauseId === clause.id ? (
+-                            <>
+-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+-                              <span>Wird generiert...</span>
+-                            </>
+-                          ) : (
+-                            "Alternativen generieren"
+-                          )}
+-                        </Button>
+-                      </div>
+-
+-                      {/* Bereich für alternative Formulierungen */}
+-                      {clause.id === openClause && alternativeFormulations.length > 0 && (
+-                        <div className="mt-4 space-y-3">
+-                          <h4 className="text-sm font-medium">Alternative Formulierungen:</h4>
+-                          {alternativeFormulations.map((alternative, index) => (
+-                            <div key={index} className="p-3 rounded-md border bg-slate-50">
+-                              <div className="flex justify-between items-center mb-1">
+-                                <span className="text-xs font-medium text-slate-500">Alternative {index + 1}</span>
+-                                <Button 
+-                                  size="sm" 
+-                                  variant="ghost" 
+-                                  className="h-6 px-2"
+-                                  onClick={() => setCustomFormulation(alternative)}
+-                                >
+-                                  <span className="text-xs">Übernehmen</span>
+-                                </Button>
+-                              </div>
+-                              <p className="text-sm">{alternative}</p>
+-                            </div>
+-                          ))}
+-                        </div>
+-                      )}
+-                    </div>
+-                  </CollapsibleContent>
+-                </Collapsible>
+-              ))}
+-            </div>
+-          </div>
+-        </TabsContent>
+-
+-        <TabsContent value="risiko" className="space-y-6">
+-          <div className="grid gap-6 md:grid-cols-2">
+-            <Card>
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-2">Gesamtrisikobewertung</h3>
+-                <div className="space-y-4">
+-                  <div>
+-                    <div className="flex justify-between text-sm mb-1">
+-                      <span>Vertragsrisiko:</span>
+-                      <span className="font-medium">{riskScore}%</span>
+-                    </div>
+-                    <Progress value={riskScore} className="h-2">
+-                      <div
+-                        className={`h-full ${getProgressColor(riskScore)} rounded-full`}
+-                        style={{ width: `${riskScore}%` }}
+-                      />
+-                    </Progress>
+-                  </div>
+-
+-                  <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 text-gray-900 dark:text-gray-900 border border-red-200">
+-                    <div className="flex items-center">
+-                      <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+-                      <span className="font-medium text-red-700">Vertrag mit hohem Risiko</span>
+-                    </div>
+-                    <Badge variant="destructive">Handlungsbedarf</Badge>
+-                  </div>
+-
+-                  <p className="text-sm text-muted-foreground">
+-                    Dieser Vertrag enthält erhebliche Risikofaktoren, die vor Vertragsabschluss adressiert werden
+-                    sollten. Besonderes Augenmerk sollte auf die Vertragsstrafen und Haftungsklauseln gelegt werden.
+-                  </p>
+-                </div>
+-              </CardContent>
+-            </Card>
+-
+-            <Card>
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-4">Risikoverteilung</h3>
+-                <ChartAnimationWrapper className="h-[220px]">
+-                  <ResponsiveContainer width="100%" height="100%">
+-                    <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+-                      <Pie
+-                        data={riskDistributionData}
+-                        cx="50%"
+-                        cy="50%"
+-                        innerRadius={60}
+-                        outerRadius={80}
+-                        paddingAngle={5}
+-                        dataKey="value"
+-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+-                        labelLine={true}
+-                        animationDuration={1500}
+-                      >
+-                        {riskDistributionData.map((entry, index) => (
+-                          <Cell key={`cell-${index}`} fill={entry.color} />
+-                        ))}
+-                      </Pie>
+-                    </PieChart>
+-                  </ResponsiveContainer>
+-                </ChartAnimationWrapper>
+-              </CardContent>
+-            </Card>
+-
+-            <Card className="md:col-span-2">
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-4">Risiko nach Kategorie</h3>
+-                <ChartAnimationWrapper className="h-[250px]">
+-                  <ResponsiveContainer width="100%" height="100%">
+-                    <BarChart
+-                      data={riskCategoryData}
+-                      layout="vertical"
+-                      margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+-                    >
+-                      <CartesianGrid horizontal strokeDasharray="3 3" />
+-                      <XAxis type="number" domain={[0, 100]} />
+-                      <YAxis dataKey="category" type="category" width={90} />
+-                      <Bar
+-                        dataKey="risk"
+-                        fill="var(--color-risk)"
+-                        radius={[0, 4, 4, 0]}
+-                        barSize={20}
+-                        animationDuration={1500}
+-                        label={{
+-                          position: "right",
+-                          formatter: (value: number) => `${value}%`,
+-                          fill: "#888",
+-                          fontSize: 12,
+-                        }}
+-                      >
+-                        {riskCategoryData.map((entry, index) => (
+-                          <Cell key={`cell-${index}`} fill={entry.fill} />
+-                        ))}
+-                      </Bar>
+-                    </BarChart>
+-                  </ResponsiveContainer>
+-                </ChartAnimationWrapper>
+-              </CardContent>
+-            </Card>
+-
+-            <Card className="md:col-span-2">
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-4">Risiko-Radar-Analyse</h3>
+-                <ChartAnimationWrapper className="h-[300px]">
+-                  <ResponsiveContainer width="100%" height="100%">
+-                    <RadarChart
+-                      cx="50%"
+-                      cy="50%"
+-                      outerRadius="80%"
+-                      data={[
+-                        { subject: "Finanziell", value: 80, fullMark: 100 },
+-                        { subject: "Rechtlich", value: 65, fullMark: 100 },
+-                        { subject: "Zeitlich", value: 45, fullMark: 100 },
+-                        { subject: "Technisch", value: 30, fullMark: 100 },
+-                        { subject: "Operativ", value: 55, fullMark: 100 },
+-                      ]}
+-                    >
+-                      <PolarGrid />
+-                      <PolarAngleAxis dataKey="subject" />
+-                      <PolarRadiusAxis angle={30} domain={[0, 100]} />
+-                      <Radar
+-                        name="Risikolevel"
+-                        dataKey="value"
+-                        stroke="#2563eb"
+-                        fill="#3b82f6"
+-                        fillOpacity={0.6}
+-                        animationDuration={1500}
+-                      />
+-                    </RadarChart>
+-                  </ResponsiveContainer>
+-                </ChartAnimationWrapper>
+-              </CardContent>
+-            </Card>
+-          </div>
+-        </TabsContent>
+-
+-        <TabsContent value="verhandlung" className="space-y-6">
+-          <div className="grid gap-6 md:grid-cols-2">
+-            <Card>
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-2">Verhandlungswahrscheinlichkeit</h3>
+-                <div className="space-y-4">
+-                  <div className="flex flex-col items-center justify-center space-y-2">
+-                    <div
+-                      className={`text-4xl font-bold ${negotiationProbability < 50 ? "text-red-500" : negotiationProbability < 75 ? "text-amber-500" : "text-green-500"}`}
+-                    >
+-                      {negotiationProbability}%
+-                    </div>
+-                    <Progress value={negotiationProbability} className="h-2 w-full">
+-                      <div
+-                        className={`h-full ${getNegotiationColor(negotiationProbability)} rounded-full`}
+-                        style={{ width: `${negotiationProbability}%` }}
+-                      />
+-                    </Progress>
+-                    <p className="mt-2 text-center text-sm text-muted-foreground">
+-                      Moderate Verhandlungsherausforderungen. Fokussieren Sie sich auf die Klauseln mit hohem Risiko, um
+-                      Ihre Position zu verbessern.
+-                    </p>
+-                  </div>
+-
+-                  <div className="mt-4 space-y-3">
+-                    <h4 className="font-medium">Faktoren, die die Verhandlung beeinflussen:</h4>
+-                    <div className="flex items-center justify-between text-sm">
+-                      <span>Auftragswert</span>
+-                      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">
+-                        Positiv
+-                      </Badge>
+-                    </div>
+-                    <div className="flex items-center justify-between text-sm">
+-                      <span>Zeitliche Einschränkungen</span>
+-                      <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">
+-                        Negativ
+-                      </Badge>
+-                    </div>
+-                    <div className="flex items-center justify-between text-sm">
+-                      <span>Marktposition</span>
+-                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200">
+-                        Neutral
+-                      </Badge>
+-                    </div>
+-                  </div>
+-                </div>
+-              </CardContent>
+-            </Card>
+-
+-            <Card>
+-              <CardHeader className="pb-3">
+-                <div className="flex items-center gap-2">
+-                  <AlertCircle className="h-5 w-5 text-amber-600" />
+-                  <CardTitle>Empfohlene Verhandlungspunkte</CardTitle>
+-                </div>
+-              </CardHeader>
+-              <CardContent>
+-                <div className="space-y-3">
+-                  <div className="rounded-lg border p-3 bg-red-50 text-gray-900 dark:text-gray-900">
+-                    <div className="flex items-center gap-2 mb-1">
+-                      <AlertTriangle className="h-4 w-4 text-red-500" />
+-                      <span className="font-medium">Vertragsstrafen</span>
+-                    </div>
+-                    <p className="text-sm whitespace-normal break-words">
+-                      Reduzierung der Vertragsstrafe auf 0,1% pro Werktag mit einer Obergrenze von 5% der Auftragssumme.
+-                    </p>
+-                  </div>
+-
+-                  <div className="rounded-lg border p-3 bg-red-50 text-gray-900 dark:text-gray-900">
+-                    <div className="flex items-center gap-2 mb-1">
+-                      <AlertTriangle className="h-4 w-4 text-red-500" />
+-                      <span className="font-medium">Haftungsbegrenzung</span>
+-                    </div>
+-                    <p className="text-sm whitespace-normal break-words">
+-                      Einführung einer Haftungsbegrenzung auf die Höhe der Auftragssumme für Folgeschäden und
+-                      entgangenen Gewinn.
+-                    </p>
+-                  </div>
+-
+-                  <div className="rounded-lg border p-3 bg-amber-50 text-gray-900 dark:text-gray-900">
+-                    <div className="flex items-center gap-2 mb-1">
+-                      <AlertCircle className="h-4 w-4 text-amber-500" />
+-                      <span className="font-medium">Zahlungsbedingungen</span>
+-                    </div>
+-                    <p className="text-sm whitespace-normal break-words">
+-                      Verkürzung der Zahlungsfrist von 30 auf 14 Tage nach Rechnungseingang.
+-                    </p>
+-                  </div>
+-                </div>
+-              </CardContent>
+-            </Card>
+-
+-            <Card className="md:col-span-2">
+-              <CardContent className="pt-6">
+-                <h3 className="text-lg font-semibold mb-4">Verhandlungsstrategie</h3>
+-                <div className="space-y-4">
+-                  <p className="text-sm text-muted-foreground">
+-                    Basierend auf der Vertragsanalyse empfehlen wir folgende Verhandlungsstrategie:
+-                  </p>
+-
+-                  <div className="space-y-3">
+-                    <div className="flex items-start gap-3">
+-                      <div className="bg-primary/10 rounded-full p-2 mt-0.5">
+-                        <span className="text-primary font-bold text-sm">1</span>
+-                      </div>
+-                      <div>
+-                        <h4 className="font-medium">Priorisierung der Hochrisikoklauseln</h4>
+-                        <p className="text-sm text-muted-foreground">
+-                          Konzentrieren Sie die Verhandlungsbemühungen zuerst auf die Vertragsstrafen und
+-                          Haftungsklauseln, da diese das höchste Risiko darstellen.
+-                        </p>
+-                      </div>
+-                    </div>
+-
+-                    <div className="flex items-start gap-3">
+-                      <div className="bg-primary/10 rounded-full p-2 mt-0.5">
+-                        <span className="text-primary font-bold text-sm">2</span>
+-                      </div>
+-                      <div>
+-                        <h4 className="font-medium">Alternative Formulierungen vorbereiten</h4>
+-                        <p className="text-sm text-muted-foreground">
+-                          Halten Sie vorab formulierte Alternativvorschläge für die problematischen Klauseln bereit, um
+-                          die Verhandlungen zu beschleunigen.
+-                        </p>
+-                      </div>
+-                    </div>
+-
+-                    <div className="flex items-start gap-3">
+-                      <div className="bg-primary/10 rounded-full p-2 mt-0.5">
+-                        <span className="text-primary font-bold text-sm">3</span>
+-                      </div>
+-                      <div>
+-                        <h4 className="font-medium">Projektwert als Hebel nutzen</h4>
+-                        <p className="text-sm text-muted-foreground">
+-                          Betonen Sie den hohen Auftragswert und Ihre Expertise als Hebel für günstigere
+-                          Vertragsbedingungen.
+-                        </p>
+-                      </div>
+-                    </div>
+-
+-                    <div className="flex items-start gap-3">
+-                      <div className="bg-primary/10 rounded-full p-2 mt-0.5">
+-                        <span className="text-primary font-bold text-sm">4</span>
+-                      </div>
+-                      <div>
+-                        <h4 className="font-medium">Rechtliche Beratung in Betracht ziehen</h4>
+-                        <p className="text-sm text-muted-foreground">
+-                          Angesichts des hohen Risikos dieses Vertrags sollten Sie eine rechtliche Beratung für den
+-                          Verhandlungsprozess in Betracht ziehen.
+-                        </p>
+-                      </div>
+-                    </div>
+-                  </div>
+-
+-                  <div className="flex justify-end mt-4">
+-                    <Button>Verhandlungsleitfaden erstellen</Button>
+-                  </div>
+-                </div>
+-              </CardContent>
+-            </Card>
+-          </div>
+-        </TabsContent>
+-      </Tabs>
+-      </CardContent>
+-    </Card>
+-  )
+-}
+diff --git a/back_up_restore/contract-editor-with-contract.tsx b/back_up_restore/contract-editor-with-contract.tsx
+deleted file mode 100644
+index 2b76d6e..0000000
+--- a/back_up_restore/contract-editor-with-contract.tsx
++++ /dev/null
+@@ -1,1019 +0,0 @@
+-"use client"
+-
+-import { useState, useEffect, useCallback, useRef, MutableRefObject } from "react"
+-import { Button } from "@/components/ui/button"
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+-import { Separator } from "@/components/ui/separator"
+-import { ContractSection } from "@/components/contract-section"
+-import { AlertTriangle, CheckCircle, Plus, Save, FileText, Undo, Redo, Copy, Trash, AlertCircle, Loader2, ChevronUp, ChevronDown, X, Download } from "lucide-react"
+-import { Badge } from "@/components/ui/badge"
+-import { Card, CardContent } from "@/components/ui/card"
+-import { ScrollArea } from "@/components/ui/scroll-area"
+-import { Send } from "lucide-react"
+-import { Textarea } from "@/components/ui/textarea"
+-import { Input } from "@/components/ui/input"
+-import { useContract } from "@/hooks/useConvex"
+-import { useMutation, useAction } from "convex/react"
+-import { api } from "@/convex/_generated/api"
+-import { toast } from "sonner"
+-import type { Doc, Id } from "@/convex/_generated/dataModel"
+-
+-export interface EditorSection {
+-  id: string;
+-  title: string;
+-  content: string;
+-  risk: "low" | "medium" | "high" | "error";
+-  evaluation: string;
+-  reason?: string;
+-  recommendation?: string;
+-  needsRenegotiation: boolean;
+-  urgentAttention: boolean;
+-  alternativeFormulations?: { id: string; content: string }[];
+-  removed?: boolean;
+-  chunkNumber?: number;
+-}
+-
+-// Interface für den History-Eintrag
+-interface HistoryEntry {
+-  sections: EditorSection[];
+-}
+-
+-interface ContractEditorWithContractProps {
+-  contractId: Id<"contracts">
+-}
+-
+-export function ContractEditorWithContract({ contractId }: ContractEditorWithContractProps) {
+-  const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+-  const [history, setHistory] = useState<HistoryEntry[]>([{ sections: [] }])
+-  const [historyIndex, setHistoryIndex] = useState(0)
+-  const [isSaving, setIsSaving] = useState(false)
+-  const [optimizingSectionId, setOptimizingSectionId] = useState<string | null>(null)
+-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+-  const [detailsVisible, setDetailsVisible] = useState<Set<string>>(new Set())
+-  const [isEditingFileName, setIsEditingFileName] = useState(false)
+-  const [editedFileName, setEditedFileName] = useState('')
+-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+-  const editorScrollAreaRef = useRef<HTMLDivElement>(null)
+-  const fileNameInputRef = useRef<HTMLInputElement>(null)
+-
+-  const { contract, isLoading } = useContract(contractId);
+-  const updateAnalysisMutation = useMutation(api.contractMutations.updateContractAnalysis);
+-  const optimizeClauseAction = useAction(api.contractActions.optimizeClauseWithAI);
+-  const generateAlternativesAction = useAction(api.contractActions.generateAlternativeFormulations);
+-  const updateFileNameMutation = useMutation(api.contractMutations.updateFileName);
+-
+-  // Aktuelle Sektionen aus dem Verlauf ableiten
+-  const sections = history[historyIndex].sections;
+-
+-  // Helper zum Aktualisieren des States und Hinzufügen zur History
+-  const updateSectionsAndHistory = useCallback((newSections: EditorSection[]) => {
+-    const newHistoryEntry = { sections: newSections };
+-    // Entferne alle zukünftigen Zustände nach dem aktuellen Index (falls wir Undo gemacht haben)
+-    const newHistory = history.slice(0, historyIndex + 1);
+-    setHistory([...newHistory, newHistoryEntry]);
+-    setHistoryIndex(newHistory.length);
+-  }, [history, historyIndex]);
+-
+-  useEffect(() => {
+-    if (contract) {
+-      // Zuerst prüfen, ob bearbeitete Daten (editedAnalysis) vorhanden sind
+-      if (contract.editedAnalysis && contract.editedAnalysis.length > 0) {
+-        console.log("Lade bearbeitete Vertragsdaten aus editedAnalysis");
+-        // Direkt die bearbeiteten Daten verwenden, da sie bereits im richtigen Format sind
+-        setHistory([{ sections: contract.editedAnalysis }]);
+-        setHistoryIndex(0);
+-      } 
+-      // Wenn keine bearbeiteten Daten verfügbar sind, aber analysisProtocol vorhanden
+-      else if (contract.analysisProtocol && contract.analysisProtocol.length > 0) {
+-        console.log("Lade ursprüngliche Vertragsdaten aus analysisProtocol");
+-        const transformedSections: EditorSection[] = contract.analysisProtocol.map((clause, index) => {
+-          let riskLevel: EditorSection["risk"] = "low";
+-          switch (clause.evaluation.toLowerCase()) {
+-            case "rot":
+-              riskLevel = "high";
+-              break;
+-            case "gelb":
+-              riskLevel = "medium";
+-              break;
+-            case "grün":
+-              riskLevel = "low";
+-              break;
+-            case "fehler":
+-              riskLevel = "error";
+-              break;
+-          }
+-
+-          // Titel generieren basierend auf dem Inhalt der Klausel
+-          let title = `Klausel ${index + 1}`;
+-          
+-          // Extrahiere Nummerierung aus dem Klauseltext, falls vorhanden
+-          const numberMatch = clause.clauseText.match(/^(\d+\.[\d\.]*)\s+/);
+-          if (numberMatch) {
+-            // Verwende die gefundene Nummerierung im Titel
+-            title = `§ ${numberMatch[1]} (Klausel ${index + 1})`;
+-          } else {
+-            // Wenn keine Nummerierung gefunden, extrahiere den Themenschwerpunkt
+-            // Verwende die ersten 3-5 Wörter, max 40 Zeichen
+-            const words = clause.clauseText.split(' ');
+-            const thematicTitle = words.slice(0, 4).join(' ');
+-            title = thematicTitle.length > 40 
+-              ? thematicTitle.substring(0, 40) + '...' 
+-              : thematicTitle;
+-            title = `${index + 1}. ${title}`;
+-          }
+-
+-          return {
+-            id: `clause-${clause.chunkNumber || '0'}-${index}`,
+-            title: title,
+-            content: clause.clauseText,
+-            risk: riskLevel,
+-            evaluation: clause.evaluation,
+-            reason: clause.reason,
+-            recommendation: clause.recommendation,
+-            needsRenegotiation: riskLevel === "high" || riskLevel === "medium",
+-            urgentAttention: riskLevel === "high",
+-            alternativeFormulations: [],
+-            chunkNumber: clause.chunkNumber,
+-          };
+-        });
+-        // Initialisiere die History mit den geladenen Daten
+-        setHistory([{ sections: transformedSections }]);
+-        setHistoryIndex(0);
+-      } else if (!isLoading && contract) {
+-          // Fall: Contract existiert, aber keine Analysedaten
+-          setHistory([{ sections: [] }]);
+-          setHistoryIndex(0);
+-      }
+-    } else if (!isLoading && !contract) {
+-        setHistory([{ sections: [] }]);
+-        setHistoryIndex(0);
+-    }
+-  }, [contract, isLoading]);
+-
+-  const addNewSection = () => {
+-    console.warn("addNewSection: Diese Funktion muss überarbeitet werden, um mit dynamischen Vertragsdaten zu arbeiten.")
+-  };
+-
+-  const getRiskIcon = (risk: EditorSection["risk"]) => {
+-    switch (risk) {
+-      case "high":
+-        return <AlertTriangle className="h-4 w-4 text-red-500" />
+-      case "medium":
+-        return <AlertCircle className="h-4 w-4 text-amber-500" />
+-      case "low":
+-        return <CheckCircle className="h-4 w-4 text-green-500" />
+-      case "error":
+-        return <AlertTriangle className="h-4 w-4 text-destructive" />
+-      default:
+-        return null
+-    }
+-  }
+-
+-  const applyAlternativeFormulation = (sectionId: string, alternativeId: string) => {
+-    const newSections = sections.map((section) => {
+-        if (section.id === sectionId) {
+-          const alternative = section.alternativeFormulations?.find((alt) => alt.id === alternativeId);
+-          if (alternative) {
+-            return {
+-              ...section,
+-              content: alternative.content,
+-              risk: "low" as EditorSection["risk"],
+-              evaluation: "Grün",
+-              needsRenegotiation: false,
+-              urgentAttention: false,
+-            };
+-          }
+-        }
+-        return section;
+-      });
+-    updateSectionsAndHistory(newSections);
+-  }
+-
+-  const removeClause = (sectionId: string) => {
+-    const newSections = sections.map((section) => {
+-        if (section.id === sectionId) {
+-          return {
+-            ...section,
+-            content: "[Diese Klausel wurde vom Benutzer entfernt]",
+-            risk: "low" as EditorSection["risk"],
+-            evaluation: "N/A",
+-            needsRenegotiation: false,
+-            urgentAttention: false,
+-            removed: true,
+-          };
+-        }
+-        return section;
+-      });
+-     updateSectionsAndHistory(newSections);
+-  }
+-  
+-  const handleSaveContract = async () => {
+-    if (!contract?._id) {
+-        toast.error("Fehler: Keine Vertrags-ID zum Speichern vorhanden.");
+-        return;
+-    }
+-    setIsSaving(true);
+-    try {
+-        console.log("Speichern der Vertragsänderungen für contractId:", contract._id);
+-        
+-        // Bereinige die Sections für das Backend:
+-        // Prüfe, ob die API alternativeFormulations unterstützt
+-        // Falls nicht, entferne diese Eigenschaft aus allen Objekten
+-        const cleanedSections = sections.map(section => {
+-            const { alternativeFormulations, ...cleanSection } = section;
+-            // Schema wurde aktualisiert, sollte alternativeFormulations unterstützen
+-            // Falls nicht, werden sie hier entfernt
+-            return {
+-                ...cleanSection,
+-                alternativeFormulations: alternativeFormulations || []
+-            };
+-        });
+-        
+-        await updateAnalysisMutation({ 
+-            contractId: contract._id, 
+-            updatedSections: cleanedSections
+-        });
+-        toast.success("Vertragsänderungen erfolgreich gespeichert!");
+-    } catch (error) {
+-        console.error("Fehler beim Speichern der Vertragsänderungen:", error);
+-        
+-        // Bei Validierungsfehlern mit alternativeFormulations versuche ohne sie zu speichern
+-        if (error instanceof Error && error.message.includes("alternativeFormulations")) {
+-            try {
+-                console.log("Versuche erneut ohne alternativeFormulations...");
+-                const strippedSections = sections.map(({ alternativeFormulations, ...rest }) => rest);
+-                await updateAnalysisMutation({
+-                    contractId: contract._id,
+-                    updatedSections: strippedSections
+-                });
+-                toast.success("Vertragsänderungen gespeichert (ohne Alternativvorschläge)");
+-            } catch (fallbackError) {
+-                console.error("Auch der zweite Versuch ist fehlgeschlagen:", fallbackError);
+-                toast.error("Fehler beim Speichern der Änderungen.", { 
+-                    description: fallbackError instanceof Error ? fallbackError.message : "Unbekannter Fehler" 
+-                });
+-            }
+-        } else {
+-            toast.error("Fehler beim Speichern der Änderungen.", { 
+-                description: error instanceof Error ? error.message : "Unbekannter Fehler" 
+-            });
+-        }
+-    } finally {
+-        setIsSaving(false);
+-    }
+-  };
+-
+-  // Undo Funktion
+-  const handleUndo = () => {
+-    if (historyIndex > 0) {
+-      setHistoryIndex(historyIndex - 1);
+-    }
+-  };
+-
+-  // Redo Funktion
+-  const handleRedo = () => {
+-    if (historyIndex < history.length - 1) {
+-      setHistoryIndex(historyIndex + 1);
+-    }
+-  };
+-
+-  // Copy Funktion
+-  const handleCopySection = () => {
+-    if (!activeSectionId) {
+-        toast.info("Bitte wählen Sie zuerst eine Sektion zum Kopieren aus.");
+-        return;
+-    }
+-    const sectionToCopy = sections.find(s => s.id === activeSectionId);
+-    if (!sectionToCopy) return;
+-
+-    const newSection: EditorSection = {
+-      ...sectionToCopy,
+-      // Neue eindeutige ID generieren (z.B. mit Zeitstempel oder UUID)
+-      id: `clause-${sectionToCopy.chunkNumber || '0'}-${Date.now()}`,
+-      title: `${sectionToCopy.title} (Kopie)`
+-    };
+-
+-    const currentIndex = sections.findIndex(s => s.id === activeSectionId);
+-    const newSections = [
+-        ...sections.slice(0, currentIndex + 1),
+-        newSection,
+-        ...sections.slice(currentIndex + 1)
+-    ];
+-    updateSectionsAndHistory(newSections);
+-    // Optional: Die neue Sektion direkt aktiv machen
+-    setActiveSectionId(newSection.id);
+-     toast.success(`Sektion "${sectionToCopy.title}" wurde kopiert.`);
+-  };
+-
+-  // Delete Funktion
+-  const handleDeleteSection = () => {
+-     if (!activeSectionId) {
+-        toast.info("Bitte wählen Sie zuerst eine Sektion zum Löschen aus.");
+-        return;
+-    }
+-    const sectionToDelete = sections.find(s => s.id === activeSectionId);
+-    if (!sectionToDelete) return;
+-
+-    const newSections = sections.filter(s => s.id !== activeSectionId);
+-    updateSectionsAndHistory(newSections);
+-    setActiveSectionId(null); // Keine Sektion mehr aktiv nach Löschen
+-    toast.success(`Sektion "${sectionToDelete.title}" wurde gelöscht.`);
+-  };
+-
+-  // Platzhalter für "Einreichen" der benutzerdefinierten Formulierung
+-  const handleCustomFormulationSubmit = (sectionId: string, customContent: string) => {
+-    if (!customContent.trim()) {
+-      toast.info("Bitte geben Sie eine Formulierung ein.");
+-      return;
+-    }
+-    console.log(`Eigene Formulierung für Sektion ${sectionId} eingereicht:`, customContent);
+-    // Sektion aktualisieren
+-    const newSections = sections.map(s => s.id === sectionId ? {...s, content: customContent, risk: 'low' as EditorSection["risk"]} : s);
+-    updateSectionsAndHistory(newSections);
+-    toast.success("Eigene Formulierung übernommen (Speichern nicht vergessen).");
+-  };
+-
+-  // "Mit KI optimieren"-Funktion für benutzerdefinierte Formulierungen
+-  const handleOptimizeWithAI = async (sectionId: string, textToOptimize?: string) => {
+-    const section = sections.find(s => s.id === sectionId);
+-    if (!section) return;
+-
+-    const isManualOptimization = typeof textToOptimize === 'string';
+-    const contentToOptimize = isManualOptimization ? textToOptimize : section.content;
+-
+-    if (!contentToOptimize || contentToOptimize.trim().length === 0) {
+-      if (!isManualOptimization) {
+-          toast.info("Kein Inhalt in der Klausel zum Optimieren vorhanden.");
+-      }
+-      return;
+-    }
+-    
+-    setOptimizingSectionId(sectionId); 
+-    console.log(`KI-Optimierung angefordert für Sektion ${sectionId}. Manuell: ${isManualOptimization}. Inhalt:`, contentToOptimize);
+-    
+-    try {
+-        if (isManualOptimization) {
+-            // Fall 1: Bei einem manuellen Aufruf (Button "Mit KI optimieren")
+-            const alternatives = await optimizeClauseAction({ clauseText: contentToOptimize });
+-            console.log("Received alternatives:", alternatives);
+-            
+-            if (alternatives && alternatives.length > 0) {
+-                // Den optimierten Text direkt in das Eingabefeld einfügen
+-                const textarea = document.getElementById(`custom-formulation-${sectionId}`) as HTMLTextAreaElement;
+-                if (textarea) {
+-                    textarea.value = alternatives[0];
+-                    toast.success("Text wurde optimiert. Klicke auf 'Einreichen', um ihn zu übernehmen.");
+-                } else {
+-                    toast.error("Fehler: Konnte das Eingabefeld nicht finden.");
+-                }
+-            } else {
+-                toast.info("KI konnte keine Alternativen für diesen Text finden.");
+-            }
+-        } else {
+-            // Fall 2: Bei automatischem Aufruf (Detailkarte aufgeklappt)
+-            // Verwende die neue generateAlternativesAction für 3 alternative Formulierungen
+-            const alternatives = await generateAlternativesAction({ clauseText: contentToOptimize });
+-            console.log("Received alternative formulations:", alternatives);
+-            
+-            if (alternatives && alternatives.length > 0) {
+-                toast.success(`${alternatives.length} alternative Formulierungen generiert!`);
+-                const newSections = sections.map(s => {
+-                    if (s.id === sectionId) {
+-                        // Überschreibe immer die alternativeFormulations mit den neuesten Ergebnissen
+-                        return {
+-                            ...s,
+-                            alternativeFormulations: alternatives.map((altText, index) => ({ id: `ai-alt-${sectionId}-${index}-${Date.now()}`, content: altText }))
+-                        };
+-                    }
+-                    return s;
+-                });
+-                updateSectionsAndHistory(newSections);
+-            } else {
+-                toast.info("KI konnte keine Alternativen für diesen Text generieren.");
+-            }
+-        }
+-    } catch (error) {
+-        console.error("Fehler bei der KI-Optimierung:", error);
+-        toast.error("Fehler bei der KI-Optimierung.", { description: error instanceof Error ? error.message : "Unbekannter Fehler" });
+-    } finally {
+-        setOptimizingSectionId(null); 
+-    }
+-  };
+-
+-  // Funktion, um sicherzustellen, dass Refs korrekt gesetzt werden
+-  const setSectionRef = (sectionId: string) => (el: HTMLDivElement | null) => {
+-    sectionRefs.current[sectionId] = el;
+-  };
+-
+-  // Funktion zum Verfolgen der eingeklappten Sektionen
+-  const handleSectionCollapsedChange = (sectionId: string, isCollapsed: boolean) => {
+-    console.log(`Section ${sectionId} collapsed state changed to: ${isCollapsed}`);
+-    setCollapsedSections(prev => {
+-      const newSet = new Set(prev);
+-      if (isCollapsed) {
+-        newSet.add(sectionId);
+-      } else {
+-        newSet.delete(sectionId);
+-      }
+-      return newSet;
+-    });
+-  };
+-
+-  // Funktion zum Umschalten der Sichtbarkeit der Details-Karte
+-  const toggleDetailsVisibility = (sectionId: string, e?: React.MouseEvent) => {
+-    // Immer das Event stoppen, um zu verhindern, dass es an die Hauptkachel weitergeleitet wird
+-    if (e) {
+-      e.stopPropagation();
+-    }
+-    
+-    console.log(`Toggling details for section ${sectionId}. Currently visible: ${detailsVisible.has(sectionId)}`);
+-    
+-    // Wenn die Sektion noch nicht aktiv ist, aktivieren
+-    if (activeSectionId !== sectionId) {
+-      setActiveSectionId(sectionId);
+-    }
+-    
+-    setDetailsVisible(prev => {
+-      const newSet = new Set(prev);
+-      if (newSet.has(sectionId)) {
+-        newSet.delete(sectionId);
+-      } else {
+-        newSet.add(sectionId);
+-      }
+-      return newSet;
+-    });
+-  };
+-
+-  // Funktion, die prüft, ob die Details für eine Sektion sichtbar sein sollen
+-  const isDetailsVisible = useCallback((sectionId: string) => {
+-    return activeSectionId === sectionId && !collapsedSections.has(sectionId) && detailsVisible.has(sectionId);
+-  }, [activeSectionId, collapsedSections, detailsVisible]);
+-
+-  // Funktion zum Entfernen einer Klausel
+-  const handleRemoveClause = (sectionId: string) => {
+-    const section = sections.find(s => s.id === sectionId);
+-    if (!section) return;
+-    
+-    // Setze die removed Eigenschaft auf true statt tatsächlich zu löschen
+-    const newSections = sections.map(s => 
+-      s.id === sectionId ? {...s, removed: true} : s
+-    );
+-    
+-    // Aktualisiere Sektionen und History
+-    updateSectionsAndHistory(newSections);
+-    setActiveSectionId(null);
+-    toast.success(`Klausel "${section.title}" wurde entfernt.`);
+-  };
+-
+-  // Effekt zum automatischen Laden von KI-Alternativen für aktive, riskante Sektionen ohne Alternativen
+-  useEffect(() => {
+-    if (activeSectionId && sections.length > 0) {
+-      const activeSection = sections.find(s => s.id === activeSectionId);
+-      
+-      // Prüfen, ob die Sektion existiert, riskant ist, noch keine Alternativen hat UND nicht gerade optimiert wird
+-      if (
+-        activeSection && 
+-        (activeSection.risk === "medium" || activeSection.risk === "high") && 
+-        (!activeSection.alternativeFormulations || activeSection.alternativeFormulations.length === 0) &&
+-        optimizingSectionId !== activeSectionId // Verhindert erneutes Laden, wenn schon aktiv
+-      ) {
+-        console.log(`Automatically fetching AI alternatives for active risky section: ${activeSectionId}`);
+-        // Rufe handleOptimizeWithAI für den Hauptinhalt der Klausel auf (ohne textToOptimize)
+-        handleOptimizeWithAI(activeSectionId);
+-      }
+-    }
+-    // Abhängigkeiten: Wird ausgeführt, wenn sich die aktive Sektion oder der Optimierungsstatus ändert
+-  }, [activeSectionId, sections, optimizingSectionId]); 
+-
+-  // 1. Speichern-Unter-Funktionalität
+-  const handleDownloadContract = () => {
+-    if (!contract) {
+-      toast.error("Fehler: Vertrag konnte nicht geladen werden.");
+-      return;
+-    }
+-
+-    // Den Inhalt des Vertrags aus den Sektionen zusammenstellen
+-    const contractContent = sections
+-      .filter(section => !section.removed)
+-      .map(section => section.content)
+-      .join('\n\n');
+-
+-    // Dateinamen aus dem ursprünglichen Vertrag ableiten
+-    const originalFileName = contract.fileName;
+-    
+-    // Dateiendung extrahieren
+-    const fileExtension = originalFileName.includes('.') 
+-      ? originalFileName.split('.').pop()?.toLowerCase() 
+-      : 'txt';
+-
+-    try {
+-      // MIME-Typ und Encoding je nach Dateityp festlegen
+-      let blob;
+-      
+-      // Für Textdateien: UTF-8 Encoding verwenden
+-      if (!fileExtension || fileExtension === 'txt') {
+-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
+-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+-        const textEncoder = new TextEncoder();
+-        const contentArray = textEncoder.encode(contractContent);
+-        
+-        // BOM und Inhalt zusammenführen
+-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
+-        contentWithBOM.set(BOM, 0);
+-        contentWithBOM.set(contentArray, BOM.length);
+-        
+-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
+-      } 
+-      // Für Word-Dokumente: Da wir keine echten Word-Dokumente erzeugen können, 
+-      // exportieren wir als .txt mit entsprechendem Hinweis
+-      else if (fileExtension === 'docx' || fileExtension === 'doc') {
+-        toast.info("Word-Format wird als UTF-8 Textdatei exportiert", {
+-          description: "Die eigentliche Word-Formatierung kann nicht beibehalten werden."
+-        });
+-        
+-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
+-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+-        const textEncoder = new TextEncoder();
+-        const contentArray = textEncoder.encode(contractContent);
+-        
+-        // BOM und Inhalt zusammenführen
+-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
+-        contentWithBOM.set(BOM, 0);
+-        contentWithBOM.set(contentArray, BOM.length);
+-        
+-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
+-      } 
+-      // Für andere Formate: als Textdatei behandeln
+-      else {
+-        toast.info(`Format .${fileExtension} wird als UTF-8 Textdatei exportiert`);
+-        
+-        // BOM (Byte Order Mark) für UTF-8 hinzufügen
+-        const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+-        const textEncoder = new TextEncoder();
+-        const contentArray = textEncoder.encode(contractContent);
+-        
+-        // BOM und Inhalt zusammenführen
+-        const contentWithBOM = new Uint8Array(BOM.length + contentArray.length);
+-        contentWithBOM.set(BOM, 0);
+-        contentWithBOM.set(contentArray, BOM.length);
+-        
+-        blob = new Blob([contentWithBOM], { type: 'text/plain;charset=UTF-8' });
+-      }
+-      
+-      // URL für den Download erzeugen
+-      const url = URL.createObjectURL(blob);
+-      
+-      // Download-Link erstellen und klicken
+-      const a = document.createElement('a');
+-      a.href = url;
+-      a.download = originalFileName;
+-      document.body.appendChild(a);
+-      a.click();
+-      
+-      // Aufräumen
+-      document.body.removeChild(a);
+-      URL.revokeObjectURL(url);
+-
+-      toast.success(`Vertrag "${originalFileName}" wurde erfolgreich exportiert.`);
+-    } catch (error) {
+-      console.error("Fehler beim Export des Vertrags:", error);
+-      toast.error("Fehler beim Export des Vertrags", {
+-        description: error instanceof Error ? error.message : "Unbekannter Fehler"
+-      });
+-    }
+-  };
+-
+-  // 2. Dateinamen-Bearbeitung Funktionen
+-  const handleStartEditFileName = () => {
+-    if (contract) {
+-      setEditedFileName(contract.fileName);
+-      setIsEditingFileName(true);
+-      // Focus auf das Input-Feld setzen (nach dem Rendern)
+-      setTimeout(() => {
+-        if (fileNameInputRef.current) {
+-          fileNameInputRef.current.focus();
+-          fileNameInputRef.current.select();
+-        }
+-      }, 10);
+-    }
+-  };
+-
+-  const handleSaveFileName = async () => {
+-    if (!contract || !editedFileName.trim()) {
+-      setIsEditingFileName(false);
+-      return;
+-    }
+-    
+-    try {
+-      await updateFileNameMutation({
+-        contractId: contract._id,
+-        newFileName: editedFileName.trim()
+-      });
+-      toast.success("Dateiname erfolgreich aktualisiert.");
+-    } catch (error) {
+-      console.error("Fehler beim Aktualisieren des Dateinamens:", error);
+-      toast.error("Fehler beim Aktualisieren des Dateinamens", {
+-        description: error instanceof Error ? error.message : "Unbekannter Fehler"
+-      });
+-    } finally {
+-      setIsEditingFileName(false);
+-    }
+-  };
+-
+-  const handleCancelEditFileName = () => {
+-    setIsEditingFileName(false);
+-  };
+-
+-  if (isLoading) {
+-    return (
+-      <div className="flex items-center justify-center h-[400px]">
+-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+-        <p className="ml-2 text-muted-foreground">Vertragsdaten werden geladen...</p>
+-      </div>
+-    );
+-  }
+-
+-  if (!contract || history[historyIndex].sections.length === 0) {
+-    return (
+-        <div className="flex flex-col items-center justify-center h-[400px] text-center">
+-            <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
+-            <h3 className="text-xl font-semibold mb-2">Keine Analysedaten</h3>
+-            <p className="text-muted-foreground">
+-                Für diesen Vertrag wurden keine analysierten Klauseln gefunden oder die Analyse ist noch nicht abgeschlossen/fehlgeschlagen.
+-            </p>
+-            {contract && (
+-                <p className="text-sm text-muted-foreground mt-1">Status: {contract.status}</p>
+-            )}
+-        </div>
+-    );
+-  }
+-
+-  return (
+-    <div className="flex flex-col h-full">
+-        <div className="flex items-center justify-between py-2 px-4 border-b">
+-          <div className="flex items-center gap-2">
+-            <FileText className="h-5 w-5 text-primary" />
+-            {isEditingFileName ? (
+-              <div className="flex items-center gap-2">
+-                <Input
+-                  ref={fileNameInputRef}
+-                  value={editedFileName}
+-                  onChange={(e) => setEditedFileName(e.target.value)}
+-                  onKeyDown={(e) => {
+-                    if (e.key === 'Enter') {
+-                      handleSaveFileName();
+-                    } else if (e.key === 'Escape') {
+-                      handleCancelEditFileName();
+-                    }
+-                  }}
+-                  className="h-8 max-w-md"
+-                />
+-                <Button variant="ghost" size="icon" onClick={handleSaveFileName} title="Speichern">
+-                  <CheckCircle className="h-4 w-4" />
+-                </Button>
+-                <Button variant="ghost" size="icon" onClick={handleCancelEditFileName} title="Abbrechen">
+-                  <X className="h-4 w-4" />
+-                </Button>
+-              </div>
+-            ) : (
+-              <h3 
+-                className="font-medium cursor-pointer hover:underline" 
+-                onDoubleClick={handleStartEditFileName}
+-                title="Doppelklick zum Bearbeiten"
+-              >
+-                Vertragsdokument: {contract?.fileName || 'Vertrag laden...'}
+-              </h3>
+-            )}
+-          </div>
+-          <div className="flex items-center gap-2">
+-            <Button variant="ghost" size="icon" title="Rückgängig" onClick={handleUndo} disabled={historyIndex === 0}>
+-              <Undo className="h-4 w-4" />
+-            </Button>
+-            <Button variant="ghost" size="icon" title="Wiederholen" onClick={handleRedo} disabled={historyIndex === history.length - 1}>
+-              <Redo className="h-4 w-4" />
+-            </Button>
+-            <Separator orientation="vertical" className="h-6" />
+-            <Button variant="ghost" size="icon" title="Kopieren" onClick={handleCopySection} disabled={!activeSectionId}>
+-              <Copy className="h-4 w-4" />
+-            </Button>
+-            <Button variant="ghost" size="icon" title="Löschen" onClick={handleDeleteSection} disabled={!activeSectionId}>
+-              <Trash className="h-4 w-4" />
+-            </Button>
+-            <Separator orientation="vertical" className="h-6" />
+-            <Button variant="outline" size="sm" className="gap-1" onClick={handleSaveContract} disabled={isSaving}>
+-              {isSaving ? (
+-                <Loader2 className="h-4 w-4 animate-spin" />
+-              ) : (
+-                <Save className="h-4 w-4" />
+-              )}
+-              <span>{isSaving ? "Speichern..." : "Speichern"}</span>
+-            </Button>
+-            <Button variant="outline" size="sm" className="gap-1" onClick={handleDownloadContract}>
+-              <Download className="h-4 w-4" />
+-              <span>Export</span>
+-            </Button>
+-          </div>
+-        </div>
+-
+-      <div className="flex flex-1 gap-4 p-4">
+-        <div className="flex-1 flex flex-col h-full min-h-0">
+-          <ScrollArea className="flex-1 h-full">
+-            <div className="space-y-4">
+-            {sections.map((section) => (
+-              <div key={section.id} ref={setSectionRef(section.id)} className="section-container">
+-                <ContractSection
+-                  section={section}
+-                  isActive={activeSectionId === section.id}
+-                  onClick={() => setActiveSectionId(section.id)}
+-                  onUpdate={(updatedContent) => {
+-                    // Update Funktion für einzelne Sektion
+-                    const newSections = sections.map((s) => 
+-                      s.id === section.id ? { ...s, content: updatedContent } : s
+-                    );
+-                    updateSectionsAndHistory(newSections);
+-                  }}
+-                  onRemoveClause={handleRemoveClause}
+-                  onOptimizeWithAI={handleOptimizeWithAI}
+-                  onSubmitCustomFormulation={handleCustomFormulationSubmit}
+-                  onApplyAlternativeFormulation={applyAlternativeFormulation}
+-                  optimizingSectionId={optimizingSectionId}
+-                  onToggleDetails={(sectionId, e) => toggleDetailsVisibility(sectionId, e)}
+-                  detailsVisible={detailsVisible.has(section.id)}
+-                />
+-
+-                {/* Details Karte (Begründung, Empfehlung, Alternativen) */}
+-                {detailsVisible.has(section.id) && (
+-                  <Card className="mt-4 border-gray-200 dark:border-gray-700 shadow-sm">
+-                    <CardContent className="p-4">
+-                      <div className="flex items-center mb-3">
+-                        <div className="flex items-center">
+-                          {section.risk === "medium" && (
+-                            <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 mr-2">
+-                              Verhandelbar
+-                            </Badge>
+-                          )}
+-                          {section.risk === "high" && (
+-                            <Badge variant="destructive" className="mr-2">
+-                              Dringender Handlungsbedarf
+-                            </Badge>
+-                          )}
+-                          <h3 className="text-base font-semibold">Details und Alternative Formulierungen</h3>
+-                        </div>
+-                      </div>
+-
+-                      {/* Begründung und Empfehlung */}
+-                      {(section.reason || section.recommendation) && (
+-                        <div className="space-y-3 mb-4 border-b pb-4 dark:border-gray-700">
+-                          {section.reason && (
+-                            <div className="p-3 border rounded-md bg-muted/50">
+-                              <h4 className="text-sm font-medium mb-1">Begründung ({section.risk === "high" ? "Hohes Risiko" : section.risk === "medium" ? "Mittleres Risiko" : section.risk === "low" ? "Niedriges Risiko" : "Fehler"}):</h4>
+-                              <p className="text-sm whitespace-pre-wrap">{section.reason}</p>
+-                            </div>
+-                          )}
+-                          {section.recommendation && (
+-                            <div className="p-3 border rounded-md bg-primary/5">
+-                              <h4 className="text-sm font-medium mb-1">Empfehlung:</h4>
+-                              <p className="text-sm whitespace-pre-wrap">{section.recommendation}</p>
+-                            </div>
+-                          )}
+-                        </div>
+-                      )}
+-
+-                      {/* Alternative Formulierungen */}
+-                      {(section.risk === "high" || section.risk === "medium") && (
+-                        <>
+-                          <p className="text-sm text-muted-foreground mb-4">
+-                            Diese Klausel wurde in der Risikoanalyse als risikobehaftet eingestuft. Wählen Sie eine alternative Formulierung oder entfernen Sie die Klausel.
+-                          </p>
+-
+-                          {/* KI-generierte Alternativen */}
+-                          {section.alternativeFormulations && section.alternativeFormulations.length > 0 && (
+-                            <div className="space-y-3 mb-6">
+-                              {section.alternativeFormulations.map((alt) => (
+-                                <div
+-                                  key={alt.id}
+-                                  className="p-3 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 bg-white dark:bg-gray-900/30 transition-colors group"
+-                                >
+-                                  <p className="text-sm mb-2 whitespace-pre-wrap">{alt.content}</p>
+-                                  <Button
+-                                    size="sm"
+-                                    variant="outline"
+-                                    className="border-blue-500 text-blue-600 hover:bg-blue-100/60 hover:text-blue-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
+-                                    onClick={(e) => {
+-                                      e.stopPropagation();
+-                                      applyAlternativeFormulation(section.id, alt.id);
+-                                    }}
+-                                  >
+-                                    Diese Formulierung verwenden
+-                                  </Button>
+-                                </div>
+-                              ))}
+-                            </div>
+-                          )}
+-                          {(!section.alternativeFormulations || section.alternativeFormulations.length === 0) && (
+-                            <div className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm text-muted-foreground mb-6">
+-                               Für diese Klausel wurden von der KI noch keine Alternativen vorgeschlagen. Sie können unten eine eigene Formulierung eingeben oder die Klausel mit KI optimieren lassen.
+-                            </div>
+-                          )}
+-
+-                          {/* Bereich für benutzerdefinierte Formulierung */}
+-                          <div className="space-y-2 pt-4 border-t dark:border-gray-700">
+-                            <h4 className="text-sm font-medium">Benutzerdefinierte Formulierung:</h4>
+-                            <div className="relative">
+-                              <Textarea 
+-                                placeholder="Geben Sie Ihre eigene Formulierung für diese Klausel ein..."
+-                                className="min-h-[100px] bg-white dark:bg-gray-900/30"
+-                                id={`custom-formulation-${section.id}`} 
+-                                onClick={(e) => e.stopPropagation()}
+-                              />
+-                              <div className="flex flex-col sm:flex-row gap-2 mt-3 justify-between items-stretch">
+-                                <Button
+-                                  size="sm"
+-                                  variant="destructive"
+-                                  className="gap-1 w-full sm:w-auto sm:mr-auto"
+-                                  onClick={(e) => {
+-                                    e.stopPropagation();
+-                                    handleRemoveClause(section.id);
+-                                  }}
+-                                >
+-                                  <Trash className="h-4 w-4" />
+-                                  <span>Klausel entfernen</span>
+-                                </Button>
+-                                
+-                                <div className="flex gap-2 w-full sm:w-auto">
+-                                  <Button 
+-                                    size="sm" 
+-                                    variant="outline" 
+-                                    className="gap-1 flex-grow sm:flex-grow-0"
+-                                    onClick={(e) => {
+-                                      e.stopPropagation();
+-                                      const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
+-                                      handleCustomFormulationSubmit(section.id, textarea?.value || '');
+-                                    }}
+-                                  >
+-                                    <Send className="h-4 w-4" />
+-                                    <span>Einreichen</span>
+-                                  </Button>
+-                                  <Button 
+-                                    size="sm" 
+-                                    className="gap-1 bg-destructive hover:bg-destructive/90 text-white flex-grow sm:flex-grow-0"
+-                                    onClick={(e) => {
+-                                      e.stopPropagation();
+-                                      const textarea = document.getElementById(`custom-formulation-${section.id}`) as HTMLTextAreaElement;
+-                                      const customText = textarea?.value;
+-                                      // Rufe Optimierung NUR mit dem Text aus der Textarea auf, WENN er nicht leer ist.
+-                                      if (customText && customText.trim() !== "") {
+-                                        handleOptimizeWithAI(section.id, customText);
+-                                      } else {
+-                                        toast.info("Bitte geben Sie zuerst eine Formulierung in das Textfeld ein, um sie mit KI zu optimieren.");
+-                                      }
+-                                    }}
+-                                    disabled={optimizingSectionId === section.id}
+-                                  >
+-                                    {optimizingSectionId === section.id ? (
+-                                      <Loader2 className="h-4 w-4 animate-spin" />
+-                                    ) : (
+-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2"><path d="m3 21 3.05-9.16A2 2 0 0 1 7.98 10.5H10.5a2 2 0 0 1 1.83 1.26L15 21M21 3l-9.16 3.05a2 2 0 0 1-1.34.24L9 6.05M14.5 6.5l3 3M6.5 14.5l3 3"/></svg>
+-                                    )}
+-                                    <span>{optimizingSectionId === section.id ? "Optimiere..." : "Mit KI optimieren"}</span>
+-                                  </Button>
+-                                </div>
+-                              </div>
+-                            </div>
+-                          </div>
+-                        </>
+-                      )}
+-                    </CardContent>
+-                  </Card>
+-                )}
+-              </div>
+-            ))}
+-            {sections.length > 0 && (
+-                 <Button onClick={addNewSection} variant="outline" className="w-full mt-4 gap-1" title="Neue Sektion hinzufügen (TODO)">
+-              <Plus className="h-4 w-4" />
+-                    <span>Neue Sektion hinzufügen (Funktion überdenken)</span>
+-            </Button>
+-            )}
+-          </div>
+-        </ScrollArea>
+-      </div>
+-
+-        <div className="w-96 flex-shrink-0">
+-          <div className="flex flex-col h-full">
+-              <div className="p-4 border-y rounded-t-md bg-gray-50 dark:bg-gray-800/30">
+-                <h4 className="font-medium mb-3 text-sm">Risikozusammenfassung</h4>
+-                <div className="grid grid-cols-3 gap-2 text-center">
+-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "high").length > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-muted'}`}>
+-                        <p className={`font-bold ${sections.filter((s) => s.risk === "high").length > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "high").length}</p>
+-                        <p className="text-muted-foreground">Hoch</p>
+-                    </div>
+-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "medium").length > 0 ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-muted'}`}>
+-                        <p className={`font-bold ${sections.filter((s) => s.risk === "medium").length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "medium").length}</p>
+-                        <p className="text-muted-foreground">Mittel</p>
+-                    </div>
+-                    <div className={`p-2 rounded-md text-xs ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-muted'}`}>
+-                        <p className={`font-bold ${sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{sections.filter((s) => s.risk === "low" && s.evaluation !== "Fehler").length}</p>
+-                        <p className="text-muted-foreground">Niedrig</p>
+-                    </div>
+-                    {sections.filter((s) => s.risk === "error").length > 0 && (
+-                        <div className="p-2 mt-2 rounded-md bg-destructive/10 text-center col-span-3 text-xs">
+-                            <p className="font-bold text-destructive">{sections.filter((s) => s.risk === "error").length} Analysefehler</p>
+-                        </div>
+-                    )}
+-                </div>
+-            </div>
+-            
+-              <ScrollArea className="flex-grow border rounded-b-md h-full">
+-                  <div className="p-4 space-y-3">
+-                      <h4 className="text-sm font-medium mb-4">Kritische Klauseln:</h4>
+-                    {sections
+-                        .filter((section) => section.needsRenegotiation || section.risk === "error")
+-                        .map((section) => (
+-                          <div
+-                            key={`risk-${section.id}`}
+-                              className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-shadow mb-3
+-                            ${ 
+-                            section.risk === "error" ? "bg-destructive/10 border-destructive/30 hover:border-destructive/50"
+-                            : section.urgentAttention
+-                                ? "bg-red-100 border-red-300 hover:border-red-400 dark:bg-red-900/50 dark:border-red-700/50"
+-                                : "bg-amber-100 border-amber-300 hover:border-amber-400 dark:bg-amber-900/50 dark:border-amber-700/50"
+-                            }`}
+-                            onClick={() => {
+-                              setActiveSectionId(section.id);
+-                            }}
+-                            onDoubleClick={() => {
+-                              const targetElement = sectionRefs.current[section.id];
+-                              const scrollAreaElement = editorScrollAreaRef.current;
+-
+-                              if (targetElement && scrollAreaElement) {
+-                                setActiveSectionId(section.id);
+-
+-                                setTimeout(() => {
+-                                  try {
+-                                    const viewport = scrollAreaElement.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
+-
+-                                    if (viewport) {
+-                                        const elementTopRelativeToScrollParent = targetElement.offsetTop - viewport.offsetTop;
+-                                        const desiredScrollTop = elementTopRelativeToScrollParent - 16;
+-
+-                                      viewport.scrollTo({
+-                                          top: Math.max(0, desiredScrollTop),
+-                                        behavior: 'smooth'
+-                                      });
+-                                      
+-                                      targetElement.classList.add('highlight-section');
+-                                      setTimeout(() => {
+-                                        targetElement.classList.remove('highlight-section');
+-                                      }, 1500); 
+-                                    } else {
+-                                      targetElement.scrollIntoView({
+-                                        behavior: 'smooth',
+-                                        block: 'start' 
+-                                      });
+-                                      targetElement.classList.add('highlight-section');
+-                                      setTimeout(() => {
+-                                        targetElement.classList.remove('highlight-section');
+-                                      }, 1500); 
+-                                    }
+-                                  } catch (error) {
+-                                      console.error("Error during scrolling calculation or execution:", error);
+-                                  }
+-                                }, 50); 
+-                              }
+-                            }}
+-                          >
+-                              <div className="flex items-start justify-between gap-3 mb-2">
+-                                <div className="flex items-start gap-3 min-w-0 flex-1">
+-                                {getRiskIcon(section.risk)}
+-                                <span className="font-medium text-sm break-words" title={section.title}>{section.title}</span>
+-                              </div>
+-                              <div className="flex-shrink-0 ml-2">
+-                                {section.risk !== "error" && (
+-                                    section.urgentAttention ? (
+-                                          <Badge variant="destructive" className="text-xs px-2 py-0.5 whitespace-nowrap">Dringend</Badge>
+-                                    ) : section.risk === "medium" ? (
+-                                          <Badge variant="outline" className="border-amber-300 bg-amber-200/50 text-amber-700 text-xs px-2 py-0.5 whitespace-nowrap">Verhandelbar</Badge>
+-                                    ) : null
+-                                )}
+-                               </div>
+-                            </div>
+-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-3" title={section.content}>{section.content}</p>
+-                            {section.risk === "error" && section.reason && (
+-                                   <p className="text-xs text-destructive/80 mt-2">Grund: {section.reason}</p>
+-                            )}
+-                          </div>
+-                        ))}
+-                    {sections.filter((section) => section.needsRenegotiation || section.risk === "error").length === 0 && (
+-                        <div className="p-4 text-center text-muted-foreground">
+-                            <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
+-                            <p className="text-sm">Keine kritischen Klauseln gefunden.</p>
+-                        </div>
+-                    )}
+-                </div>
+-            </ScrollArea>
+-          </div>
+-        </div>
+-      </div>
+-    </div>
+-  );
+-}
+\ No newline at end of file
+diff --git a/back_up_restore/contract-section.tsx b/back_up_restore/contract-section.tsx
+deleted file mode 100644
+index dc938ab..0000000
+--- a/back_up_restore/contract-section.tsx
++++ /dev/null
+@@ -1,183 +0,0 @@
+-"use client"
+-
+-import { useState, useEffect } from "react"
+-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+-import { Button } from "@/components/ui/button"
+-import { Textarea } from "@/components/ui/textarea"
+-import { Input } from "@/components/ui/input"
+-import { AlertTriangle, CheckCircle, Edit, Save, X, ChevronDown, ChevronUp, Trash, Send, Loader2 } from "lucide-react"
+-import { cn } from "@/lib/utils"
+-import { Badge } from "@/components/ui/badge"
+-import type { EditorSection } from "./contract-editor-with-contract"
+-
+-interface ContractSectionProps {
+-  section: EditorSection
+-  isActive: boolean
+-  onClick: () => void
+-  onUpdate: (updatedContent: string) => void
+-  onCollapsedChange?: (isCollapsed: boolean) => void
+-  onRemoveClause?: (sectionId: string) => void
+-  onOptimizeWithAI?: (sectionId: string, text?: string) => void
+-  onSubmitCustomFormulation?: (sectionId: string, formulation: string) => void
+-  onApplyAlternativeFormulation?: (sectionId: string, alternativeId: string) => void
+-  optimizingSectionId?: string | null
+-  onToggleDetails?: (sectionId: string, e: React.MouseEvent) => void
+-  detailsVisible?: boolean
+-}
+-
+-export function ContractSection({ 
+-  section, 
+-  isActive, 
+-  onClick, 
+-  onUpdate, 
+-  onCollapsedChange,
+-  onRemoveClause,
+-  onOptimizeWithAI,
+-  onSubmitCustomFormulation,
+-  onApplyAlternativeFormulation,
+-  optimizingSectionId,
+-  onToggleDetails,
+-  detailsVisible
+-}: ContractSectionProps) {
+-  const [isEditing, setIsEditing] = useState(false)
+-  const [content, setContent] = useState(section.content)
+-
+-  // Initialisiere content, wenn sich section.content ändert
+-  useEffect(() => {
+-    setContent(section.content)
+-  }, [section.content, section.title])
+-
+-  const getRiskIcon = (risk: EditorSection["risk"]) => {
+-    switch (risk) {
+-      case "high":
+-        return <AlertTriangle className="h-4 w-4 text-red-500" />
+-      case "medium":
+-        return <AlertTriangle className="h-4 w-4 text-amber-500" />
+-      case "low":
+-        return <CheckCircle className="h-4 w-4 text-green-500" />
+-      case "error":
+-        return <AlertTriangle className="h-4 w-4 text-destructive" />
+-      default:
+-        return null
+-    }
+-  }
+-
+-  const getRiskBorder = (risk: string, needsRenegotiation?: boolean, urgentAttention?: boolean) => {
+-    if (urgentAttention) {
+-      return "border-l-4 border-l-red-500 bg-red-50/50"
+-    }
+-    if (needsRenegotiation) {
+-      return "border-l-4 border-l-amber-500 bg-amber-50/50"
+-    }
+-    switch (risk) {
+-      case "high":
+-        return "border-l-4 border-l-red-500"
+-      case "medium":
+-        return "border-l-4 border-l-amber-500"
+-      case "low":
+-        return "border-l-4 border-l-green-500"
+-      default:
+-        return ""
+-    }
+-  }
+-
+-  const handleSave = () => {
+-    onUpdate(content)
+-    setIsEditing(false)
+-  }
+-
+-  const handleCancel = () => {
+-    setContent(section.content)
+-    setIsEditing(false)
+-  }
+-
+-  const handleToggleDetails = (e: React.MouseEvent) => {
+-    e.stopPropagation()
+-    if (onToggleDetails) {
+-      onToggleDetails(section.id, e)
+-    }
+-  }
+-
+-  const getEvaluationText = (evaluation: string) => {
+-    if (evaluation.toLowerCase() === "rot") return "Hohes Risiko"
+-    if (evaluation.toLowerCase() === "gelb") return "Mittleres Risiko"
+-    if (evaluation.toLowerCase() === "grün") return "Niedriges Risiko"
+-    if (evaluation.toLowerCase() === "fehler") return "Analysefehler"
+-    return evaluation
+-  }
+-
+-  return (
+-    <Card
+-      className={cn(
+-        "transition-all duration-200 hover:shadow-md",
+-        isActive ? "ring-2 ring-primary ring-offset-2" : "",
+-        getRiskBorder(section.risk, section.needsRenegotiation, section.urgentAttention),
+-        section.removed ? "opacity-70" : "",
+-      )}
+-      onClick={(e) => {
+-        // Verhindere unnötige Neuaktivierungen
+-        if (!isEditing && !isActive) {
+-          onClick();
+-        }
+-      }}
+-    >
+-      <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
+-        <div className="flex items-center gap-2 flex-grow min-w-0">
+-          {getRiskIcon(section.risk)}
+-          <h3 className="font-medium truncate" title={section.title}>{section.title}</h3>
+-          {section.removed && (
+-            <Badge variant="outline" className="ml-2 bg-gray-100 text-gray-700 whitespace-nowrap">
+-              Entfernt
+-            </Badge>
+-          )}
+-        </div>
+-        <div className="flex items-center gap-2">
+-          <Button 
+-            variant="ghost" 
+-            size="icon" 
+-            onClick={handleToggleDetails}
+-            title={detailsVisible ? "Details ausblenden" : "Details anzeigen"}
+-          >
+-            {detailsVisible ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+-          </Button>
+-          {isEditing ? (
+-            <>
+-              <Button variant="ghost" size="sm" onClick={handleCancel}>
+-                <X className="h-4 w-4 mr-1" />
+-                Abbrechen
+-              </Button>
+-              <Button size="sm" onClick={handleSave}>
+-                <Save className="h-4 w-4 mr-1" />
+-                Speichern
+-              </Button>
+-            </>
+-          ) : (
+-            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
+-              <Edit className="h-4 w-4" />
+-            </Button>
+-          )}
+-        </div>
+-      </CardHeader>
+-        <CardContent className="p-4 pt-2" onClick={isEditing ? (e) => e.stopPropagation() : undefined}>
+-          {isEditing ? (
+-            <Textarea
+-              value={content}
+-              onChange={(e) => setContent(e.target.value)}
+-              className="min-h-[150px] font-normal text-sm border-primary/50 focus:border-primary focus:ring-primary/30"
+-              onClick={(e) => e.stopPropagation()}
+-            />
+-          ) : (
+-          <p className="text-sm whitespace-pre-wrap cursor-text" onClick={(e) => {
+-            e.stopPropagation();
+-            // Nur aktivieren, wenn die Sektion nicht schon aktiv ist
+-            if (!isActive) {
+-              onClick();
+-            }
+-          }}>{section.content}</p>
+-        )}
+-        
+-        {/* Begründung und Details wurden entfernt und werden jetzt in contract-editor-with-contract.tsx angezeigt */}
+-        </CardContent>
+-    </Card>
+-  )
+-}
+diff --git a/components/analytics-layout.tsx b/components/analytics-layout.tsx
+index c1fea9e..247ae64 100644
+--- a/components/analytics-layout.tsx
++++ b/components/analytics-layout.tsx
+@@ -2,16 +2,17 @@
+ 
+ import type React from "react"
+ 
+-import { useState } from "react"
+-import { ChevronLeft, ChevronRight, Search, FileText, Menu, Loader2 } from "lucide-react"
++import { useState, useEffect, ReactNode } from "react"
++import { ChevronLeft, ChevronRight, Search, FileText, Menu, Loader2, PanelLeftOpen, PanelLeftClose } from "lucide-react"
+ import { Button } from "@/components/ui/button"
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+-import { ContractsList } from "@/components/contracts-list"
++import { ContractsList, type ContractListProps } from "@/components/contracts-list"
+ import { Input } from "@/components/ui/input"
+ import { NegotiationSimulator } from "@/components/negotiation-simulator"
+ import { RiskAnalysisCharts } from "@/components/risk-analysis-charts"
+ import type { Id } from "@/convex/_generated/dataModel"
+ import dynamic from 'next/dynamic'
++import { useIsMobile } from '@/hooks/use-mobile'
+ 
+ // Dynamischer Import für ContractEditorWithContract
+ const ContractEditorWithContract = dynamic(
+@@ -27,114 +28,117 @@ const ContractEditorWithContract = dynamic(
+   }
+ )
+ 
++// Define width constants
++const EXPANDED_WIDTH_PX = 280;
++const COLLAPSED_WIDTH_PX = 0;
++const SEPARATOR_WIDTH_PX = 1;
++
+ interface AnalyticsLayoutProps {
+   contractId?: string
+   initialTab?: "editor" | "risikoanalyse" | "verhandlung" 
++  children: ReactNode;
++  contracts: ContractListProps['contracts']; // Ensure this type matches what ContractsList expects
++  selectedContractId: string | undefined; // Or string, depending on usage
+ }
+ 
+-export function AnalyticsLayout({ contractId, initialTab = "editor" }: AnalyticsLayoutProps) {
+-  const [isListCollapsed, setIsListCollapsed] = useState(false)
+-  const [activeTab, setActiveTab] = useState<"editor" | "risikoanalyse" | "verhandlung">(initialTab)
++export function AnalyticsLayout({ contractId, initialTab = "editor", children, contracts, selectedContractId }: AnalyticsLayoutProps) {
++  const isMobile = useIsMobile(); // Hook to determine if mobile view
++  const [isContractsListExpanded, setIsContractsListExpanded] = useState(!isMobile);
++  const [contractsListPixelWidth, setContractsListPixelWidth] = useState(
++    isMobile ? COLLAPSED_WIDTH_PX : EXPANDED_WIDTH_PX
++  );
+ 
+-  const toggleList = () => {
+-    setIsListCollapsed(!isListCollapsed)
+-  }
++  useEffect(() => {
++    if (isMobile) {
++      setIsContractsListExpanded(false);
++    } else {
++      setIsContractsListExpanded(true);
++    }
++  }, [isMobile]);
++
++  useEffect(() => {
++    if (isContractsListExpanded) {
++      setContractsListPixelWidth(EXPANDED_WIDTH_PX);
++    } else {
++      setContractsListPixelWidth(COLLAPSED_WIDTH_PX);
++    }
++  }, [isContractsListExpanded]);
++
++  const handleToggleContractsList = () => {
++    setIsContractsListExpanded(!isContractsListExpanded);
++  };
++
++  // Ensure contracts prop is null if undefined, as per instructions
++  const contractsForList = contracts === undefined ? null : contracts;
+ 
+   return (
+-    <div className="flex flex-col h-full min-h-screen pb-0">
+-      {/* Tabs Header mit fixer Breite */}
+-      <div className="border-b mb-2 w-full">
+-        <Tabs
+-          defaultValue="editor"
+-          value={activeTab}
+-          onValueChange={(value) => setActiveTab(value as "editor" | "risikoanalyse" | "verhandlung")}
+-          className="w-full"
+-        >
+-          <TabsList className="w-full grid grid-cols-3">
+-            <TabsTrigger value="editor" className="rounded-tl-md rounded-tr-none">
+-              Vertragseditor
+-            </TabsTrigger>
+-            <TabsTrigger value="risikoanalyse" className="rounded-none">
+-              Risikoanalyse
+-            </TabsTrigger>
+-            <TabsTrigger value="verhandlung" className="rounded-tr-md rounded-tl-none">
+-              Verhandlungssimulator
+-            </TabsTrigger>
+-          </TabsList>
+-        </Tabs>
++    <div className="relative flex w-screen h-screen overflow-hidden bg-background">
++      {/* ContractsList Container */}
++      <div
++        style={{
++          width: `${contractsListPixelWidth}px`,
++          transition: 'width 0.3s ease-in-out',
++        }}
++        className="absolute top-0 left-0 h-full z-20 bg-background shadow-md" // Added bg-background and shadow for better visual separation
++      >
++        {/* Render ContractsList only if its width is > 0 to avoid rendering it collapsed if it has no collapsed view */}
++        {contractsListPixelWidth > 0 && (
++           <ContractsList
++            contracts={contractsForList}
++            selectedContractId={selectedContractId}
++            isMobile={isMobile} // Pass isMobile, ContractsList might use it
++            isCollapsed={!isContractsListExpanded}
++            setIsCollapsed={(newCollapsedState: boolean) => setIsContractsListExpanded(!newCollapsedState)}
++          />
++        )}
+       </div>
+ 
+-      {/* Main Content mit flexiblem Layout */}
+-      <div className="flex flex-1 relative gap-4 overflow-hidden">
+-        {/* Vertragsliste - kann ein-/ausgeklappt werden */}
++      {/* Separator Line */}
++      {!isMobile && ( // Hide separator and button on mobile if ContractsList is always collapsed
+         <div
+-          className={`transition-all duration-300 flex flex-col h-full ${
+-            isListCollapsed ? "w-0 overflow-hidden" : "md:w-64 lg:w-72"
+-          }`}
++          style={{
++            left: `${contractsListPixelWidth}px`,
++            transition: 'left 0.3s ease-in-out',
++          }}
++          className="absolute top-0 h-full z-30"
+         >
+-          <div className="h-full space-y-4 flex flex-col flex-grow min-h-0">
+-            <div className="relative px-1 pt-1">
+-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+-              <Input type="search" placeholder="Verträge durchsuchen..." className="pl-8 w-full" />
+-          </div>
+-            <div className="flex-grow overflow-auto min-h-0">
+-              <ContractsList />
+-            </div>
+-          </div>
++          <div className="w-px h-full bg-border" /> {/* Using theme border color */}
+         </div>
++      )}
+ 
+-        {/* Toggle Button für die Vertragsliste */}
+-                    <Button
+-          variant="outline" 
+-                      size="icon"
+-          className={`absolute top-1 ${isListCollapsed ? 'left-0' : 'md:left-[240px] lg:left-[272px]'} z-10 h-8 w-8 rounded-full shadow-sm border-muted-foreground/20 transition-all duration-300`}
+-          onClick={toggleList}
++      {/* Toggle Button */}
++      {!isMobile && ( // Hide separator and button on mobile
++        <Button
++          variant="ghost"
++          size="sm"
++          onClick={handleToggleContractsList}
++          className="absolute top-1/2 z-40 p-1" // Adjusted padding
++          style={{
++            left: `${contractsListPixelWidth -14 + SEPARATOR_WIDTH_PX}px`, // Position button relative to separator
++            transform: 'translateY(-50%) translateX(-50%)', // Center button on the line
++            transition: 'left 0.3s ease-in-out',
++          }}
++          aria-label={isContractsListExpanded ? "Collapse contracts list" : "Expand contracts list"}
+         >
+-          {isListCollapsed ? (
+-            <Menu className="h-4 w-4" />
++          {isContractsListExpanded ? (
++            <PanelLeftClose className="h-5 w-5" />
+           ) : (
+-            <ChevronLeft className="h-4 w-4" />
++            <PanelLeftOpen className="h-5 w-5" />
+           )}
+-                    </Button>
++        </Button>
++      )}
+ 
+-        {/* Content Area - nimmt immer volle Breite des Tab-Menüs ein */}
+-        <div className="flex-1 transition-all duration-300 h-full min-w-0">
+-          <Tabs value={activeTab} className="h-full">
+-            <TabsContent value="editor" className="h-full mt-0">
+-              {contractId ? (
+-                <div className="h-full">
+-                  <ContractEditorWithContract contractId={contractId as Id<"contracts">} />
+-              </div>
+-              ) : (
+-                <div className="text-center text-muted-foreground py-8">
+-                  Bitte wählen Sie einen Vertrag aus, um den Vertragseditor zu starten.
+-            </div>
+-          )}
+-            </TabsContent>
+-            <TabsContent value="risikoanalyse" className="h-full mt-0">
+-              {contractId ? (
+-                <div className="p-4 h-full">
+-                  <RiskAnalysisCharts contractId={contractId as Id<"contracts">} />
+-                </div>
+-              ) : (
+-                <div className="text-center text-muted-foreground py-8">
+-                  Bitte wählen Sie einen Vertrag aus, um die Risikoanalyse zu starten.
+-        </div>
+-              )}
+-              </TabsContent>
+-            <TabsContent value="verhandlung" className="h-full mt-0">
+-                {contractId ? (
+-                <div className="h-full">
+-                    <NegotiationSimulator contractId={contractId as Id<"contracts">} />
+-                  </div>
+-                ) : (
+-                  <div className="text-center text-muted-foreground py-8">
+-                    Bitte wählen Sie einen Vertrag aus, um Verhandlungen zu starten.
+-                  </div>
+-                )}
+-              </TabsContent>
+-            </Tabs>
+-        </div>
++      {/* Main Content Area */}
++      <div
++        style={{
++          marginLeft: isMobile ? `${COLLAPSED_WIDTH_PX}px` : `${contractsListPixelWidth + SEPARATOR_WIDTH_PX}px`,
++          transition: 'margin-left 0.3s ease-in-out',
++        }}
++        className="h-full flex-grow overflow-y-auto" // Removed p-4/md:p-6, will be handled by child page or layout
++      >
++        {/* Padding should be inside this div if needed globally, or handled by the page consuming this layout */}
++        {/* Example: <div className="p-4 md:p-6 h-full">{children}</div> */}
++        {children}
+       </div>
+     </div>
+   )
+diff --git a/components/contract-editor-with-contract.tsx b/components/contract-editor-with-contract.tsx
+index f208763..54cc260 100644
+--- a/components/contract-editor-with-contract.tsx
++++ b/components/contract-editor-with-contract.tsx
+@@ -58,6 +58,12 @@ interface ContractEditorWithContractProps {
+   contractId: Id<"contracts">
+ }
+ 
++// Basisfunktion, falls keine komplexere Logik aus dem Projekt vorhanden ist
++function scrollToSectionInPage(sectionId: string) {
++  const element = document.getElementById(sectionId);
++  element?.scrollIntoView({ behavior: 'smooth' });
++}
++
+ export function ContractEditorWithContract({ contractId }: ContractEditorWithContractProps) {
+   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+   const [history, setHistory] = useState<HistoryEntry[]>([{ sections: [] }])
+@@ -1084,7 +1090,20 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
+                               <div className="flex items-start justify-between gap-2 mb-1">
+                                 <div className="flex items-center gap-2 min-w-0 flex-1">
+                                 {getRiskIcon(section.risk)}
+-                                <span className="font-medium text-sm break-words truncate" title={section.title}>{section.title}</span>
++                                <span className="font-medium text-sm break-words truncate" title={section.title}>
++                                  {(() => {
++                                    const match = section.title.match(/^(Absatz \d+):/i); // Versucht "Absatz N:" zu finden
++                                    if (match && match[1]) {
++                                      return match[1]; // Gibt "Absatz N" zurück
++                                    }
++                                    const generalMatch = section.title.match(/^([^:]+):/);
++                                    if (generalMatch && generalMatch[1] && generalMatch[1].length < 25) { // Allgemeinerer Fall, falls es einen Titel vor dem Doppelpunkt gibt
++                                        return generalMatch[1];
++                                    }
++                                    // Fallback, falls kein bekanntes Muster passt oder Titel zu lang
++                                    return section.elementType === 'paragraph' ? `Absatz ${section.chunkNumber !== undefined ? section.chunkNumber + 1 : ''}` : (section.title.length > 20 ? section.title.substring(0, 17) + '...' : section.title) ;
++                                  })()}
++                                </span>
+                               </div>
+                               <div className="flex-shrink-0 ml-1">
+                                 {section.risk !== "error" && (
+diff --git a/components/contracts-list.tsx b/components/contracts-list.tsx
+index bd5df26..3bd3b77 100644
+--- a/components/contracts-list.tsx
++++ b/components/contracts-list.tsx
+@@ -4,12 +4,19 @@ import Link from "next/link"
+ import { FileText, Loader2 } from "lucide-react"
+ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+ import { Badge } from "@/components/ui/badge"
+-import { useContracts } from "@/hooks/useConvex"
+ import { Skeleton } from "@/components/ui/skeleton"
+ import type { Doc } from "@/convex/_generated/dataModel"
+ 
+-export function ContractsList() {
+-  const { contracts, isLoading } = useContracts();
++export interface ContractListProps {
++  contracts: Doc<"contracts">[] | null | undefined;
++  isLoading: boolean;
++  selectedContractId?: string;
++  isMobile?: boolean;
++  isCollapsed?: boolean;
++}
++
++export function ContractsList(props: ContractListProps) {
++  const { contracts, isLoading, selectedContractId, isCollapsed, isMobile } = props;
+ 
+   type ContractStatusType = Doc<"contracts">["status"];
+ 
+@@ -54,6 +61,10 @@ export function ContractsList() {
+     return filename.substring(0, lastDot);
+   };
+ 
++  if (isCollapsed && !isMobile) {
++    return null;
++  }
++
+   if (isLoading) {
+     return (
+       <Card>
+@@ -73,16 +84,21 @@ export function ContractsList() {
+   }
+ 
+   return (
+-    <Card>
++    <Card className="h-full flex flex-col">
+       <CardHeader>
+         <CardTitle>Meine Verträge</CardTitle>
+         <CardDescription>Aktuelle Analysen und Vertragsentwürfe.</CardDescription>
+       </CardHeader>
+-      <CardContent>
++      <CardContent className="flex-grow overflow-y-auto">
+         {contracts && contracts.length > 0 ? (
+           <div className="space-y-3">
+             {contracts.map((contract) => (
+-              <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50">
++              <Link 
++                href={`/analytik/${contract._id}`} 
++                key={contract._id} 
++                className={`block hover:bg-muted/50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${selectedContractId === contract._id ? 'bg-muted' : ''}`}
++                aria-current={selectedContractId === contract._id ? "page" : undefined}
++              >
+                 <div className="flex items-center justify-between p-3 border rounded-lg w-full min-w-0">
+                   <div className="flex items-center gap-3 min-w-0 flex-1">
+                     <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+diff --git a/convex/gemini.ts b/convex/gemini.ts
+index ee52af2..4ccf280 100644
+--- a/convex/gemini.ts
++++ b/convex/gemini.ts
+@@ -5,84 +5,141 @@ import { ConvexError, v } from "convex/values";
+ // --- SYSTEM PROMPTS FOR MULTI-STAGE ANALYSIS ---
+ 
+ // System-Prompt für Agent 1 (Stufe 1: Globale Struktur & Grob-Chunking)
+-export const SYSTEM_PROMPT_AGENT1_CHUNK = `Du bist eine KI, spezialisiert auf die Analyse von Rechtsdokumenten, insbesondere Werkverträgen im Baubereich. Deine Aufgabe ist es, die **globale Hauptstruktur** eines gegebenen Vertragstextes zu identifizieren und den Text basierend auf dieser Struktur in **große, logische Chunks** aufzuteilen.
++export const SYSTEM_PROMPT_AGENT1_CHUNK = `Du bist eine KI, spezialisiert auf die Analyse von Rechtsdokumenten, insbesondere Werkverträgen im Baubereich. Deine Aufgabe ist es, die **globale Hauptstruktur** eines gegebenen Vertragstextes präzise zu identifizieren und den Text basierend auf dieser Struktur in eine **exakt definierte Anzahl großer, logischer Chunks** aufzuteilen. Die Konsistenz der Identifizierung von Hauptabschnitten über verschiedene Analysen hinweg ist dabei von höchster Bedeutung.
+ 
+-**Ziel:** Erstelle eine Liste von Objekten zurück, wobei jedes Objekt einen Chunk repräsentiert:
++    **GRUNDSÄTZE FÜR DIE IDENTIFIZIERUNG VON HAUPTABSCHNITTEN:**
++    1.  **Kontextbasierte Interpretation:** Hauptabschnitte sind thematisch und strukturell zusammenhängende Blöcke im Vertrag. Ihre Identifizierung muss primär aus dem **Kontext, der semantischen Bedeutung und der sichtbaren Gliederung des Textes** erfolgen (z.B. Überschriften, Nummerierungen wie §, Artikel, römische Ziffern, thematische Wechsel). Verlasse dich nicht ausschließlich auf explizite, durchgehende Nummerierungen, sondern interpretiere die logische Gliederung, die der Autor beabsichtigt hat.
++    2.  **Integrität der Hauptabschnitte:** Ein einmal identifizierter Hauptabschnitt (z.B. ein kompletter Paragraph wie "§ 1 Vertragsgrundlagen" oder ein klar abgegrenzter thematischer Block) **darf unter keinen Umständen über zwei verschiedene Chunks hinweg aufgeteilt werden.** Jeder Hauptabschnitt muss vollständig in *einem* Chunk enthalten sein.
++
++    **WICHTIGE ZIELE FÜR DAS CHUNKING (in absteigender Priorität):**
++    1.  **Gesamtanzahl der Chunks:** Teile den gesamten Vertragstext in **genau 4 bis maximal 6 Chunks** auf. Diese Vorgabe zur Gesamtanzahl der Chunks für das gesamte Dokument ist das primäre Ziel.
++    2.  **Integrität der Hauptabschnitte beim Chunking:** Die unter "GRUNDSÄTZE" definierte Unteilbarkeit von Hauptabschnitten muss strikt eingehalten werden. Die Chunk-Grenzen dürfen Hauptabschnitte nicht durchschneiden.
++    3.  **Logische Gliederung und Inhalt pro Chunk:** Die Aufteilung soll entlang der zuvor kontextbasiert identifizierten und als unteilbar geltenden Hauptabschnitte des Vertrags erfolgen. **Ein einzelner Chunk kann und soll explizit mehrere vollständige Hauptabschnitte enthalten**, um die oben genannte Zielanzahl von 4-6 Chunks zu erreichen.
++    4.  **Maximale Chunk-Größe:** Jeder dieser Chunks soll einen signifikanten Umfang haben, darf aber eine **maximale Größe von etwa 8-10 Standardseiten Text nicht überschreiten.** Die Einhaltung der Gesamt-Chunk-Anzahl (Punkt 1) und die Integrität der Hauptabschnitte (Punkt 2) haben Vorrang vor dem Erreichen dieser maximalen Seitenzahl. Es ist akzeptabel, dass Chunks kleiner sind, wenn dies notwendig ist, um die anderen Regeln einzuhalten.
++    5.  **Identifizierte Abschnitte pro Chunk:** Im Feld \`identifiedSections\` sollen die Titel oder die Bezeichner aller Hauptabschnitte aufgeführt werden, die in diesem spezifischen Chunk zusammengefasst wurden.
++    6.  **Vollständigkeit und Reihenfolge:** Der gesamte Originaltext muss lückenlos und in der korrekten Reihenfolge auf die Chunks aufgeteilt werden, wobei die Grenzen der Hauptabschnitte stets respektiert werden.
++
++    **Output-Format:** Erstelle eine JSON-Liste von Objekten zurück, wobei jedes Objekt einen Chunk repräsentiert. Das JSON muss valide sein.
+ 
+ \`\`\`json
+ [
+   {
+-    "chunkNumber": 1,
+-    "identifiedSections": ["§ 1 Vertragsgrundlagen", "§ 2 Preise"], // Beispiel mit existierender Nummerierung
+-    // "identifiedSections": ["Abschnitt 1: Einleitung", "Abschnitt 2: Definitionen"], // Beispiel mit generierter Nummerierung
+-    "chunkContent": "Der vollständige Text des ersten Chunks..."
++        "chunkNumber": 1, // Fortlaufende Nummer des Chunks
++        "identifiedSections": ["§ 1 Vertragsgrundlagen", "§ 2 Preise und Zahlungsbedingungen", "§ 3 Allgemeine Pflichten des Auftragnehmers"], // Beispiel: Dieser Chunk fasst die vollständigen Abschnitte §1, §2 und §3 zusammen.
++        "chunkContent": "Der vollständige Text des ersten Chunks, der die oben genannten, vollständig enthaltenen Abschnitte §1, §2 und §3 des Vertrags umfasst..."
+   },
+   {
+     "chunkNumber": 2,
+-    "identifiedSections": ["§ 3 Leistungsumfang"],
+-    "chunkContent": "Der vollständige Text des zweiten Chunks..."
++        "identifiedSections": ["§ 4 Leistungsumfang und Ausführung", "§ 5 Bauzeit und Termine", "§ 6 Abnahme"], // Beispiel: Dieser Chunk fasst die vollständigen Abschnitte §4, §5 und §6 zusammen.
++        "chunkContent": "Der vollständige Text des zweiten Chunks, der die oben genannten, vollständig enthaltenen Abschnitte §4, §5 und §6 des Vertrags umfasst..."
+   }
+-  // ... weitere Chunks
++      // ... weitere Chunks, bis der gesamte Vertrag in insgesamt 4 bis 6 Chunks aufgeteilt ist, wobei jeder Hauptabschnitt intakt bleibt und kein Chunk ca. 8-10 Seiten überschreitet.
+ ]
+ \`\`\`
+ 
+-Stelle sicher, dass der gesamte Originaltext lückenlos auf die Chunks aufgeteilt wird und die Reihenfolge erhalten bleibt. Das JSON muss valide sein.
++    Stelle unbedingt sicher, dass das Ergebnis exakt den Vorgaben entspricht: Gesamtanzahl von 4 bis 6 Chunks als oberste Priorität, jeder Chunk enthält einen oder mehrere *vollständige* Hauptabschnitte, kein Hauptabschnitt wird zerrissen, die Hauptabschnitte werden kontextbasiert aus dem Text interpretiert und kein Chunk überschreitet die maximale Seitengröße.
+ `;
+ 
+ // System-Prompt für Agent 2 (Stufe 2: Detaillierte Strukturierung pro Chunk)
+-export const SYSTEM_PROMPT_AGENT2_STRUCTURE = `Du bist eine KI, spezialisiert auf die detaillierte Strukturierung von Abschnitten aus Rechtsdokumenten (Werkverträgen). Deine Aufgabe ist es, einen gegebenen Text-Chunk (der einem oder mehreren Hauptabschnitten eines Vertrages entspricht) zu analysieren und dessen **detaillierte hierarchische Struktur** in einem JSON-Format abzubilden. Du erhältst auch die Information, zu welchem Haupt-Chunk (globalChunkNumber) dieser Text gehört und welche Hauptüberschriften (\`identifiedSectionsOfParentChunk\`) dieser Haupt-Chunk umfasst.
++export const SYSTEM_PROMPT_AGENT2_STRUCTURE = `Du bist eine hochspezialisierte KI für die Transformation von juristischen Text-Chunks (aus Werkverträgen) in ein extrem gut lesbares und klar strukturiertes Markdown-Format, das für den Export und die Endnutzer-Ansicht optimiert ist. Deine Hauptaufgabe ist es, einen gegebenen Text-Chunk detailliert zu analysieren und seine **hierarchische Struktur** in einem JSON-Format abzubilden. Dabei ist die Erstellung von **präzise formatiertem und semantisch angereichertem Markdown-Inhalt** für jedes Strukturelement von allerhöchster Bedeutung.
++
++    **Primäres Ziel:** Wandle den Input-Chunk in ein strukturiertes JSON-Objekt um. Dieses JSON soll die Hierarchie von Hauptabschnitten (H2), Unterabschnitten (H3 – auch wenn diese im Original nicht explizit vorhanden sind und von dir generiert werden müssen) und den dazugehörigen Textinhalten präzise abbilden. Der Textinhalt jedes Elements muss als **sorgfältig formatierter Markdown-Text** im Feld \`markdownContent\` ausgegeben werden. Das ultimative Ziel ist, dass der aus diesen Markdown-Teilen zusammengesetzte Gesamtvertrag eine herausragende Lesbarkeit aufweist und seine Struktur sowie jeder einzelne Informationsblock intuitiv und sofort erfassbar sind.
+ 
+-**Ziel:** Wandle den Input-Chunk in ein strukturiertes JSON-Objekt um, das die Hierarchie von Überschriften (Hauptabschnitte, Paragraphen, Klauseln, Unterpunkte) und den dazugehörigen Textinhalt (Markdown) präzise wiedergibt. Behalte die Originalreihenfolge bei.
++    **Vorgehensweise zur Strukturidentifizierung, Überschriftengenerierung und Markdown-Formatierung:**
+ 
+-**Vorgehensweise zur Identifizierung der Struktur:**
++    1.  **Identifiziere logische Strukturelemente:**
++        *   Suche nach expliziten Überschriften, Paragraphen, Klauseln, Artikeln, Punkten und Unterpunkten.
++        *   Analysiere den Text auf thematische Brüche und logische Unterteilungen, auch wenn diese im Original keine eigenen Überschriften besitzen. Diese bilden die Basis für potenziell zu generierende H3-Überschriften.
+ 
+-1.  **Identifiziere alle Strukturelemente:** Suche nach Überschriften, Paragraphen, Klauseln, Artikeln, Punkten und Unterpunkten innerhalb des Chunks.
+-2.  **Erkenne Hierarchieebenen:** Achte auf Nummerierungs- und Formatierungsmuster, um die Hierarchie zu bestimmen:
+-    *   **Nummerierung:** Dezimalzahlen (1.1, 1.1.1), Buchstaben (a, b, i, ii), römische Ziffern, arabische Ziffern.
+-    *   **Formatierung:** Fettung, Unterstreichung, Einrückung, Großschreibung.
+-    *   **Schlüsselwörter:** Begriffe wie "§", "Artikel", "Absatz", "Punkt".
+-3.  **Sei flexibel:** Die Strukturierung kann uneinheitlich sein. Interpretiere die wahrscheinlichste Hierarchie basierend auf visuellen und textuellen Hinweisen.
+-4.  **Inhalt zuordnen:** Ordne den Text (Markdown-Inhalt) korrekt dem jeweiligen Strukturelement (Überschrift, Klausel, Absatz) zu.
++    2.  **Erkenne und etabliere Hierarchieebenen (H2, H3):**
++        *   **H2-Ebene (Hauptabschnitte):** Identifiziere die Hauptabschnitte des Chunks. Im Markdown sollen diese als \`## [Nummer]. [Titel des Hauptabschnitts]\` formatiert werden (z.B. \`## 1. Gesamtpreis / Auftragssumme\`). Die Nummerierung sollte sich logisch in eine gedachte Gesamtnummerierung des Vertrags einfügen (nutze ggf. \`globalChunkNumber\` und \`identifiedSectionsOfParentChunk\` als Kontext für die Startnummer).
++        *   **H3-Ebene (Unterabschnitte/Thematische Blöcke):**
++            *   Wenn explizite Unterüberschriften vorhanden sind, nutze diese und formatiere sie als \`### [Hauptnummer].[Unternummer] [Titel des Unterabschnitts]\`.
++            *   **WICHTIG – Generierung von H3-Überschriften:** Für jeden klar abgrenzbaren thematischen Block oder längeren Absatz unterhalb einer H2-Ebene, der im Originaltext **keine eigene Überschrift** hat, **musst du eine kurze, prägnante und den Inhalt des folgenden Textblocks exakt zusammenfassende Überschrift generieren.** Formatiere diese generierte Überschrift im Markdown als \`### [Hauptnummer].[Unternummer] [VON DIR GENERIERTE ÜBERSCHRIFT]\` (z.B. \`### 1.1 Festpreisbindung und Ausschluss von Preisänderungen bei Verzug\`). Die Unternummerierung (1.1, 1.2, etc.) ist fortlaufend unter der jeweiligen H2-Ebene.
+ 
+-**Output-Format:** Gib ein JSON-Objekt zurück, das die Struktur des Chunks abbildet. Verwende folgendes Format für jedes Strukturelement:
++    3.  **Formatiere den Inhalt (\`markdownContent\`) jedes Strukturelements nach folgenden Regeln:**
++        *   **Überschriften (H1, H2, H3):**
++            *   Die oberste Überschrift des gesamten Vertrags (falls im ersten Chunk enthalten) kann als H1 (\`# Titel\`) formatiert werden.
++            *   Hauptabschnitte des Chunks: \`## [Nummer]. [Titel]\` (z.B. \`## 1. Gesamtpreis / Auftragssumme\`).
++            *   Unterabschnitte/Thematische Blöcke (explizit oder von dir generiert): \`### [Hauptnummer].[Unternummer] [Titel/Generierter Titel]\` (z.B. \`### 1.1 Festpreisbindung und Ausschluss von Preisänderungen bei Verzug\`).
++        *   **Textblöcke als Listenelemente:**
++            *   Jeden einzelnen Absatz oder inhaltlich zusammengehörigen Textblock, der unter einer H2- oder H3-Überschrift steht, formatiere als **Listenelement**, beginnend mit einem Bindestrich und einem Leerzeichen (\`- \`). Auch wenn ein Absatz sehr lang ist, wird er als einzelnes Listenelement behandelt.
++            *   Mehrere aufeinanderfolgende, sehr kurze Sätze, die thematisch engstens verbunden sind und im Original einen einzigen Absatz bilden, können zusammen als ein Listenelement formatiert werden. Das Beispiel des Nutzers ("- Der Wortlaut des Auftragsschreibens. Das Verhandlungsprotokoll...") zeigt, dass mehrere kurze Sätze, die eine Aufzählung darstellen aber im Original nicht explizit als Liste formatiert sind, auch als *ein* Listenelement zusammengefasst werden können, wenn sie einen einzigen logischen Punkt darstellen. Prüfe dies sorgfältig.
++        *   **Hervorhebungen (Fettdruck):** Wichtige Begriffe, Definitionen, Schlüsselwörter oder Phrasen, die im Originaltext hervorgehoben sind (z.B. durch Fettung, Unterstreichung) oder die du als besonders betonenswert für das Verständnis und die schnelle Erfassung erachtest, sollen mit Markdown-Fettdruck (\`**wichtiger Text**\`) formatiert werden. Sei hierbei proaktiv, um die Lesbarkeit zu verbessern.
++        *   **Echte Listen:** Nummerierte Listen (1., 2., ...) und Aufzählungszeichen (bullet points) aus dem Originaltext müssen als korrekte Markdown-Listen (ggf. verschachtelt unter einem Haupt-Listenelement) formatiert werden. Siehe Beispiel des Nutzers für Unter-Listenpunkte unter "### 1.5 [Hier muss eine Überschrift hin...]".
++        *   **Beibehaltung und Konsistenz:** Andere vorhandene semantische Markdown-Formatierungen (wie Kursivschrift, wenn sie eine bestimmte Bedeutung hat) sollten beibehalten werden. Achte auf absolute Konsistenz in der Anwendung dieser Formatierungsregeln im gesamten Chunk.
++
++    **Output-Format (JSON-Array von Strukturelement-Objekten):**
+ 
+ \`\`\`json
+ [
+   {
+-    "elementType": "z.B. titleH1, sectionH2, clauseH3, paragraph, listitem",
+-    "elementId": "Generiere eine ID, idealerweise aus Titel/Nummer und globalChunkNumber, z.B. chunk1_sec1_par1",
+-    "markdownContent": "Der Markdown-formatierte Text dieses Elements...",
+-    "originalOrderInChunk": 0 // Fortlaufende Nummer (0-basiert) für die Reihenfolge innerhalb dieses Chunks
+-    // globalChunkNumber und identifiedSectionsOfParentChunk werden vom aufrufenden Code hinzugefügt/sind bereits Kontext
+-  },
+-  // ... weitere Elemente in korrekter Reihenfolge
++        "elementType": "sectionH2", // z.B. titleH1, sectionH2, subsectionH3, paragraphBlockAsListItem
++        "elementId": "chunk1_sec1", // Eindeutige ID
++        "markdownContent": "## 1. Gesamtpreis / Auftragssumme",
++        "originalOrderInChunk": 0
++      },
++      {
++        "elementType": "subsectionH3",
++        "elementId": "chunk1_sec1_sub1",
++        "markdownContent": "### 1.1 Festpreisbindung und Preisanpassungen\\n- Die vereinbarten Preise sind, falls nicht anders angegeben, **unveränderliche Festpreise** auf Baudauer.\\nVerändert sich der Beginn der Leistung des AN infolge baustellenablaufbedingter Umstände, hat der AN **keinen Anspruch auf Preisänderungen**.", // Beachte: Zeilenumbruch innerhalb des Listenelements, wenn es im Original auch so war oder die Lesbarkeit fördert.
++        "originalOrderInChunk": 1
++      },
++      {
++        "elementType": "subsectionH3",
++        "elementId": "chunk1_sec1_sub2",
++        "markdownContent": "### 1.2 Abrechnung bei Pauschalpreisvereinbarung\\n- Wird der Auftrag zu einem **Pauschalpreis** erteilt, so erfolgt die Abrechnung unabhängig von den tatsächlich ausgeführten Massen bzw. Leistungen. Der AN ist verpflichtet vor Auftragserteilung die Massen des Leistungsverzeichnisses und/oder Pläne zu prüfen und erklärt, dass er alle preisbestimmenden Faktoren kennt und geprüft hat. Die vereinbarte Auftragssumme ist eine **unüberschreitbare Höchstgrenze**. Nachträglich festgestellte Rechenfehler, Massenmehrungen, sonstige Irrtümer etc. - gleich aus welchem Grund – haben keine Erhöhung des Pauschalpreises zur Folge und werden Nachforderungen aus diesen Gründen nicht anerkannt. Mehr- und Minderleistungen, durch ausdrücklich vereinbarte Ausführungsänderungen, werden getrennt ermittelt und die Kosten dem Pauschalpreis zugeschlagen oder von diesem in Abzug gebracht. Nur eine vom AG schriftlich bestätigte Pauschalpreisänderung wird bei der Abrechnung berücksichtigt.",
++        "originalOrderInChunk": 2
++      },
++      {
++        "elementType": "subsectionH3",
++        "elementId": "chunk1_sec1_sub3",
++        "markdownContent": "### 1.5 Umfang der Einheitspreise und inkludierte Kosten\\n- In den vereinbarten Preisen sind **sämtliche Lieferungen und Leistungen** sowie Bauelemente, Werkstücke und Geräte enthalten, die zur ordnungsgemäßen und fachgerechten Ausführung der beauftragten Leistung nötig sind, auch wenn diese im Leistungsverzeichnis oder  in der Leistungsbeschreibung nicht gesondert angeführt oder näher beschrieben wurden. Darunter fallen insbesondere alle Kosten für:\\n    *   Transport\\n    *   Versicherung\\n    *   Verpackung\\n    *   Steuern, Zölle, Gebühren und Abgaben, die mit den Lieferungen und Leistungen des AN zusammenhängen.",
++        "originalOrderInChunk": 3
++      }
++      // ... weitere Elemente in korrekter Reihenfolge und Formatierung
+ ]
+ \`\`\`
+ 
+-**Wichtige Hinweise:**
++    **Wichtige Hinweise zur Implementierung:**
+ 
+-*   Die \`elementId\` sollte möglichst sprechend sein (z.B. aus der Überschrift generiert) und eindeutig innerhalb des Dokuments. Verwende die dir bekannte \`globalChunkNumber\` als Präfix (z.B. \`chunk<globalChunkNumber>_...\`). Wenn keine natürliche ID vorhanden ist (z.B. bei normalen Absätzen), verwende einen generischen Bezeichner mit fortlaufender Nummer (z.B. \`chunk1_par_001\`).
+-*   \`elementType\` sollte die Hierarchieebene widerspiegeln (z.B. \`sectionH1\`, \`sectionH2\`, \`subsectionH3\`, \`paragraph\`, \`listitem\`). Wähle konsistente Bezeichner.
+-*   Der gesamte Text des Chunks muss in den \`markdownContent\`-Feldern der Elemente enthalten sein, ohne Verluste und in der korrekten Reihenfolge.
+-*   Achte darauf, Markdown-Formatierungen im \`markdownContent\` beizubehalten.
++    *   \`elementType\` muss die semantische Hierarchie widerspiegeln und zur verwendeten Markdown-Formatierung passen (z.B. \`sectionH2\` für \`## ...\`, \`subsectionH3\` für \`### ...\`). Die Textblöcke, die als Listenelemente formatiert werden, könnten einen \`elementType\` wie \`paragraphBlockAsListItem\` oder \`contentListItem\` bekommen.
++    *   Der gesamte Text des Chunks muss in den \`markdownContent\`-Feldern enthalten sein, ohne Verluste.
++    *   **Höchste Priorität:** Die Lesbarkeit, die klare Struktur durch Überschriften (insbesondere die generierten H3-Titel) und die konsistente Verwendung von Listenelementen für Textblöcke sind entscheidend für den Erfolg. Sei mutig und präzise bei der Generierung der H3-Überschriften. Sie müssen den Kern des folgenden Textes treffen.
++    *   Beachte das vom Nutzer gezeigte Beispiel für "Auftragsgrundlagen", wo mehrere kurze, thematisch zusammengehörige Sätze des Originaltextes zu einem einzigen Listenelement zusammengefasst wurden. Dies erfordert ein gutes semantisches Verständnis.
+ 
+-Stelle sicher, dass das resultierende JSON valide ist und die Struktur des Input-Chunks präzise und vollständig abbildet.
++    Stelle sicher, dass das resultierende JSON valide ist und die Struktur des Input-Chunks präzise und vollständig abbildet, wobei der \`markdownContent\` exakt nach diesen detaillierten Vorgaben für maximale Lesbarkeit und Strukturklarheit formatiert ist.
+ `;
+ 
+ // System-Prompt für Agent 3 (Stufe 3: Element-Analyse - Placeholder, ggf. anpassen)
+ // Dieser Prompt ist wahrscheinlich sehr ähnlich zum bestehenden Prompt für die Risikoanalyse.
+-export const SYSTEM_PROMPT_AGENT3_ANALYZE = `Du bist eine KI zur Risikoanalyse von Vertragsklauseln.
+-Analysiere die folgende Klausel und bewerte sie als Rot, Gelb oder Grün.
+-Gib deine Bewertung und eine kurze Begründung sowie eine Handlungsempfehlung aus.
+-Stelle die Informationen als valides JSON-Objekt bereit, das die Felder "evaluation" (string, einer von "Rot", "Gelb", "Grün", "Info"), "reason" (string) und "recommendation" (string) enthält.
+-Optional können die Felder "isError" (boolean) und "errorMessage" (string) für Verarbeitungsfehler hinzugefügt werden.
++export const SYSTEM_PROMPT_AGENT3_ANALYZE = `Du bist eine KI zur Risikoanalyse von Vertragsklauseln und operierst streng nach vordefinierten Regeln. Deine Aufgabe ist es, die dir vorgelegte Vertragsklausel ausschließlich basierend auf den Informationen und Bewertungsrichtlinien zu analysieren, die dir als Kontext aus einer spezifischen Wissensdatenbank (Vektor-Datenbank) bereitgestellt werden.
++
++    **Input:** Dir wird die zu analysierende Klausel (\`elementMarkdownContent\`) und ein relevanter Kontext aus der Wissensdatenbank (\`vectorContext\`) übergeben.
++
++    **Analyse-Vorgaben:**
++    1.  **Strikte Orientierung am Wissensdatenbank-Kontext:** Deine Bewertung (Rot, Gelb, Grün, Info) sowie die Begründung und Handlungsempfehlung müssen sich **ausschließlich und direkt** aus dem bereitgestellten \`vectorContext\` ableiten lassen. Der \`vectorContext\` enthält Beispiele, Regeln und Kriterien, die definieren, wie ähnliche Klauseln zu bewerten sind.
++    2.  **Keine eigene Interpretation außerhalb des Kontexts:** Du darfst **keine eigenen Bewertungen oder Interpretationen** vornehmen, die nicht explizit durch den \`vectorContext\` gestützt sind. Verlasse dich nicht auf allgemeines Wissen oder frühere Trainingsdaten, die nicht Teil dieses spezifischen Kontexts sind.
++    3.  **Ziel:** Identifiziere im \`vectorContext\` die relevantesten Informationen, die auf die vorgelegte Klausel zutreffen, und wende die dort definierten Bewertungsmaßstäbe an.
+ 
+-Beispiel:
++    **Output-Format (valides JSON-Objekt):**
++    Stelle die Informationen als valides JSON-Objekt bereit, das die folgenden Felder enthält:
++    *   \`"evaluation"\`: String; einer von "Rot", "Gelb", "Grün", "Info". Diese Bewertung muss direkt aus den im \`vectorContext\` gefundenen Regeln oder Vergleichsbeispielen abgeleitet sein.
++    *   \`"reason"\`: String; eine kurze, präzise Begründung, die **direkt auf die relevanten Passagen oder Regeln im \`vectorContext\` Bezug nimmt** und erklärt, warum die Klausel entsprechend bewertet wurde.
++    *   \`"recommendation"\`: String; eine Handlungsempfehlung, die ebenfalls auf den im \`vectorContext\` gefundenen Informationen oder Lösungsvorschlägen basiert.
++    *   Optional: \`"isError"\`: Boolean; für Verarbeitungsfehler.
++    *   Optional: \`"errorMessage"\`: String; für eine Fehlermeldung.
++
++    **Beispiel (basierend auf der Annahme, der \`vectorContext\` würde entsprechende Informationen enthalten):**
++    \`\`\`json
+ {
+   "evaluation": "Gelb",
+-  "reason": "Die Klausel X ist unklar formuliert und könnte zu Y führen.",
+-  "recommendation": "Präzisierung von X wird empfohlen."
++      "reason": "Die Klausel zur Haftungsbeschränkung entspricht nicht vollständig den im Wissensdatenbank-Kontext (Abschnitt X.Y) definierten Kriterien für eine 'Grün'-Bewertung, da sie Aspekt Z nicht abdeckt. Laut Regel ABC im Kontext ist dies als 'Gelb' einzustufen.",
++      "recommendation": "Empfehlung gemäß Wissensdatenbank-Kontext (Beispiel Z): Ergänzung der Klausel um Aspekt Z oder Neuformulierung gemäß Vorlage XY aus dem Kontext."
+ }
++    \`\`\`
++
++    **Wichtig:** Wenn der \`vectorContext\` keine eindeutigen Informationen zur Bewertung der spezifischen Klausel enthält oder die Klausel Aspekte aufweist, die im Kontext nicht abgedeckt sind, soll dies klar in der \`reason\` kommuniziert werden und die Bewertung tendenziell vorsichtiger (z.B. "Gelb" oder "Info" mit entsprechender Begründung des fehlenden Kontexts) ausfallen, anstatt eine potenziell falsche definitive Bewertung abzugeben. Im Zweifelsfall ist es besser, auf eine unklare Informationslage hinzuweisen.
+ `;
+ 
+ 

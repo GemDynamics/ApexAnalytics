@@ -4,12 +4,20 @@ import Link from "next/link"
 import { FileText, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useContracts } from "@/hooks/useConvex"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Doc } from "@/convex/_generated/dataModel"
 
-export function ContractsList() {
-  const { contracts, isLoading } = useContracts();
+export interface ContractListProps {
+  contracts: Doc<"contracts">[] | null | undefined;
+  isLoading: boolean;
+  selectedContractId?: string;
+  isMobile?: boolean;
+  isCollapsed?: boolean;
+  setIsCollapsed?: (isCollapsed: boolean) => void;
+}
+
+export function ContractsList(props: ContractListProps) {
+  const { contracts, isLoading, selectedContractId, isCollapsed, isMobile } = props;
 
   type ContractStatusType = Doc<"contracts">["status"];
 
@@ -54,6 +62,10 @@ export function ContractsList() {
     return filename.substring(0, lastDot);
   };
 
+  if (isCollapsed && !isMobile) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <Card>
@@ -73,16 +85,21 @@ export function ContractsList() {
   }
 
   return (
-    <Card>
+    <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle>Meine Verträge</CardTitle>
         <CardDescription>Aktuelle Analysen und Vertragsentwürfe.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow overflow-y-auto">
         {contracts && contracts.length > 0 ? (
           <div className="space-y-3">
             {contracts.map((contract) => (
-              <Link href={`/analytik/${contract._id}`} key={contract._id} className="block hover:bg-muted/50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <Link 
+                href={`/analytik/${contract._id}`} 
+                key={contract._id} 
+                className={`block hover:bg-muted/50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${selectedContractId === contract._id ? 'bg-muted' : ''}`}
+                aria-current={selectedContractId === contract._id ? "page" : undefined}
+              >
                 <div className="flex items-center justify-between p-3 border rounded-lg w-full min-w-0">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />

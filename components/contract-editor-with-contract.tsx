@@ -58,6 +58,12 @@ interface ContractEditorWithContractProps {
   contractId: Id<"contracts">
 }
 
+// Basisfunktion, falls keine komplexere Logik aus dem Projekt vorhanden ist
+function scrollToSectionInPage(sectionId: string) {
+  const element = document.getElementById(sectionId);
+  element?.scrollIntoView({ behavior: 'smooth' });
+}
+
 export function ContractEditorWithContract({ contractId }: ContractEditorWithContractProps) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([{ sections: [] }])
@@ -854,7 +860,6 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
 
       <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0 order-2 md:order-1 min-w-0">
-            <h4 className="text-sm font-medium mb-3 px-1">Vertragsinhalt</h4>
           <ScrollArea className="flex-1 border rounded-md">
              <div ref={editorScrollAreaRef} className="h-full">
                 <div className="p-4 space-y-4">
@@ -1084,7 +1089,20 @@ export function ContractEditorWithContract({ contractId }: ContractEditorWithCon
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                 {getRiskIcon(section.risk)}
-                                <span className="font-medium text-sm break-words truncate" title={section.title}>{section.title}</span>
+                                <span className="font-medium text-sm break-words truncate" title={section.title}>
+                                  {(() => {
+                                    const match = section.title.match(/^(Absatz \d+):/i); // Versucht "Absatz N:" zu finden
+                                    if (match && match[1]) {
+                                      return match[1]; // Gibt "Absatz N" zurück
+                                    }
+                                    const generalMatch = section.title.match(/^([^:]+):/);
+                                    if (generalMatch && generalMatch[1] && generalMatch[1].length < 25) { // Allgemeinerer Fall, falls es einen Titel vor dem Doppelpunkt gibt
+                                        return generalMatch[1];
+                                    }
+                                    // Fallback, falls kein bekanntes Muster passt oder Titel zu lang
+                                    return section.elementType === 'paragraph' ? `Absatz ${section.chunkNumber !== undefined ? section.chunkNumber + 1 : ''}` : (section.title.length > 20 ? section.title.substring(0, 17) + '...' : section.title) ;
+                                  })()}
+                                </span>
                               </div>
                               <div className="flex-shrink-0 ml-1">
                                 {section.risk !== "error" && (
