@@ -85,13 +85,27 @@ export default defineSchema({
         globalChunkNumber: v.number(), // Nummer des großen Chunks aus Stage 1 (NEU)
         globalOriginalOrder: v.number(), // Globale Reihenfolge im gesamten Dokument (Bleibt relevant)
         // Felder für Analyseergebnisse aus Stufe 3 (optional, da sie später hinzugefügt werden)
-        evaluation: v.optional(v.string()),
+        evaluation: v.optional(v.string()), // z.B. 'Rot', 'Gelb', 'Grün'
         reason: v.optional(v.string()),
         recommendation: v.optional(v.string()),
         isError: v.optional(v.boolean()),
         errorMessage: v.optional(v.string()),
       })
     )),
+    
+    // NEU: Hinzugefügtes Feld für das Analyseprotokoll
+    analysisProtocol: v.optional(
+      v.array(
+        v.object({
+          chunkNumber: v.optional(v.number()), // oder v.float64() wenn präziser
+          clauseText: v.optional(v.string()),
+          evaluation: v.optional(v.string()), // z.B. 'Rot', 'Gelb', 'Grün'
+          reason: v.optional(v.string()),
+          recommendation: v.optional(v.string()),
+          // Fügen Sie hier weitere Felder hinzu, falls Ihr Protokoll mehr Details pro Eintrag hat
+        })
+      )
+    ),
     
     // Veraltet? Ggf. entfernen, falls komplett durch structuredContractElements ersetzt
     structuredElements: v.optional(v.array(
