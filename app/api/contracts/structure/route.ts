@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 // Typen
 interface ContractElement {
@@ -10,10 +10,36 @@ interface ContractElement {
   parentId?: string;
 }
 
-// OpenAI-Client initialisieren
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Umgebungsvariable für den API-Schlüssel
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in environment variables.");
+}
+
+// GoogleGenerativeAI Client initialisieren
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-preview-0514" }); // Modell hier anpassbar
+
+// Sicherheits-Einstellungen (optional, aber empfohlen)
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,78 +54,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Systemanweisung für strukturierte Verarbeitung
-    const systemPrompt = `Du bist ein KI-Assistent, der Verträge in strukturierte Elemente umwandelt.
-Deine Aufgabe ist es, den Vertrag in die folgenden Elemente zu zerlegen:
-- Titel
-- Überschriften (mit hierarchischer Ebene)
-- Klauseln/Abschnitte
-- Normaler Text
+    // HIER IHREN SPEZIFISCHEN PROMPT FÜR GEMINI EINFÜGEN
+    const promptForGemini = `Analysiere den folgenden Vertragstext und extrahiere die Struktur.
+    Vertragstext:
+    ${contractText}
+    
+    Gib das Ergebnis als JSON-Objekt zurück, das eine Liste von Elementen enthält. Jedes Element sollte 'id', 'type', 'content' und optional 'level' und 'parentId' haben.
+    Beispiel für ein Element: { "id": "clause_1", "type": "clause", "content": "Inhalt der Klausel...", "parentId": "heading_2" }`;
+    
+    // Gemini API aufrufen
+    const generationConfig = {
+      // temperature: 0.9, // Anpassen nach Bedarf
+      // topK: 1,
+      // topP: 1,
+      // maxOutputTokens: 2048, // Anpassen nach Bedarf
+      responseMimeType: "application/json", // Wichtig, wenn Sie JSON erwarten!
+    };
 
-Formatiere deine Ausgabe als JSON-Array, wobei jedes Element folgende Struktur hat:
-{
-  "id": "eindeutige ID",
-  "type": "title" | "heading" | "clause" | "text",
-  "content": "Text des Elements",
-  "level": Hierarchieebene (nur für Überschriften),
-  "parentId": "ID des übergeordneten Elements (falls vorhanden)"
-}
-
-Achte darauf, dass du komplexe Klauseln und Abschnitte korrekt identifizierst. Eine Klausel ist typischerweise ein rechtlich verbindlicher Teil eines Vertrags, der Rechte und Pflichten definiert.`;
-
-    // OpenAI API aufrufen
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { 
-          role: 'user', 
-          content: `Titel: ${title || 'Vertrag'}\n\nInhalt:\n${contractText}` 
-        }
+    const chat = model.startChat({
+      generationConfig,
+      safetySettings,
+      history: [ // Optional: Bisherige Konversationsteile, falls relevant
+        // {
+        //   role: "user",
+        //   parts: [{ text: "Vorherige Benutzeranfrage" }],
+        // },
+        // {
+        //   role: "model",
+        //   parts: [{ text: "Vorherige Modellantwort" }],
+        // },
       ],
-      temperature: 0.2, // Niedriger für strukturiertere Antworten
-      response_format: { type: 'json_object' },
     });
 
-    // Antwort extrahieren und parsen
-    const structureText = response.choices[0].message.content;
+    const result = await chat.sendMessage(promptForGemini);
+    const response = result.response;
     
-    if (!structureText) {
-      return NextResponse.json(
-        { error: 'Keine Antwort vom KI-Modell erhalten' },
-        { status: 500 }
-      );
-    }
-
-    let structuredElements: ContractElement[] = [];
-    
-    try {
-      const parsedResponse = JSON.parse(structureText);
-      structuredElements = parsedResponse.elements || [];
-      
-      // Fallback, falls das Format nicht korrekt ist
-      if (!Array.isArray(structuredElements)) {
-        structuredElements = [];
-      }
-    } catch (parseError) {
-      console.error('Fehler beim Parsen der API-Antwort:', parseError);
-      return NextResponse.json(
-        { error: 'Fehler beim Verarbeiten der strukturierten Daten' },
-        { status: 500 }
-      );
-    }
+    // Stellen Sie sicher, dass response.text() die erwartete JSON-Struktur zurückgibt
+    // Eventuell müssen Sie hier noch response.candidates[0].content.parts[0].text oder ähnlich verwenden,
+    // je nachdem, wie das Gemini SDK die Antwort genau strukturiert.
+    const structuredData = JSON.parse(response.text());
 
     // Erfolgreiche Antwort
     return NextResponse.json({
       title,
       originalText: contractText,
-      structuredElements
+      structuredElements: structuredData.elements || []
     });
-    
   } catch (error) {
-    console.error('Fehler bei der Vertragsstrukturierung:', error);
+    console.error('Error processing contract structure with Gemini:', error);
+    // Typ-Überprüfung für den Fehler und detailliertere Fehlermeldung
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
     return NextResponse.json(
-      { error: 'Interner Serverfehler bei der Vertragsstrukturierung' },
+      { error: 'Failed to process contract structure', details: errorMessage },
       { status: 500 }
     );
   }

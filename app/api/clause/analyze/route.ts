@@ -1,153 +1,100 @@
-import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-// Typen
-interface KnowledgeChunk {
-  id: string;
-  textContent: string;
-  metadata: {
-    source: string;
-    type: string;
-    keywords: string[];
-    last_updated: string;
-  };
+// Umgebungsvariable für den API-Schlüssel
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in environment variables.");
 }
 
-interface ElementAnalysis {
+// GoogleGenerativeAI Client initialisieren
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-preview-0514" }); // Modell hier anpassbar
+
+// Sicherheits-Einstellungen (optional, aber empfohlen)
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
+
+// Definition der erwarteten Antwortstruktur (ggf. anpassen)
+interface ClauseAnalysisResponse {
   status: 'green' | 'yellow' | 'red';
   explanation: string;
-  relevantChunks: string[];
+  detailedAnalysis?: string; // Zusätzliche Details, falls vom Modell generiert
   alternativeSuggestions?: string[];
+  relevantKnowledgeBaseChunks?: string[]; // IDs oder Referenzen
 }
 
-// OpenAI-Client initialisieren
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Dummy-Funktionen, die in einer echten Implementierung mit einer Vektordatenbank arbeiten würden
-async function getRelevantKnowledgeChunks(clauseText: string, limit = 5): Promise<KnowledgeChunk[]> {
-  // Hier würde normalerweise ein Vektorähnlichkeitssuche-API-Aufruf erfolgen
-  
-  // Dummy-Daten zurückgeben
-  return [
-    {
-      id: "rule_yellow_flag_003",
-      textContent: "Vertragserfüllungsbürgschaften über 10% der Auftragssumme sind verhandelbar, aber kritisch zu prüfen. Eine Reduzierung auf maximal 10% sollte angestrebt werden. Erfüllungsgarantien von 20% oder mehr sind zu hoch angesetzt und sollten reduziert werden.",
-      metadata: {
-        source: "Regeln für die Analyse.md",
-        type: "Verhandelbare Klausel",
-        keywords: ["Vertragserfüllungsbürgschaft", "Erfüllungsgarantie", "Bürgschaft", "Sicherheiten", "verhandelbare Klausel"],
-        last_updated: "2024-07-15"
-      }
-    },
-    {
-      id: "legal_de_005",
-      textContent: "Nach deutschem Recht kann die formularmäßige Forderung einer Bürgschaft 'auf erstes Anfordern' in AGB gemäß § 307 BGB häufig unwirksam sein, insbesondere wenn der Sicherungszweck unklar ist oder die Klausel mit anderen Sicherheiten kumuliert wird. Sie benachteiligt den Bürgen (und damit indirekt den Auftragnehmer) unangemessen, da sie dessen Einwendungsmöglichkeiten stark beschneidet. Der BGH prüft solche Klauseln sehr kritisch wegen des Missbrauchspotenzials und der Verlagerung des Risikos auf den Bürgen. Bezüglich der Höhe hat der BGH 10% der Auftragssumme für Vertragserfüllungsbürgschaften in AGB gebilligt. Die VOB/B sieht für die Gewährleistungssicherheit i.d.R. 5% der Abrechnungssumme vor (§ 17 VOB/B).",
-      metadata: {
-        source: "Juristische Analyse des deutschen Vertragsrechts.md",
-        type: "Gesetzliche Regelung",
-        keywords: ["Bürgschaft", "auf erstes Anfordern", "Sicherheiten", "§ 307 BGB", "Erfüllungsbürgschaft", "deutsches Recht"],
-        last_updated: "2024-07-15"
-      }
-    }
-  ];
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Request-Body parsen
-    const body = await req.json();
-    const { clauseId, clauseText, contractTitle } = body;
+    const { clauseText, contractContext } = await req.json();
 
     if (!clauseText) {
-      return NextResponse.json(
-        { error: 'Klauseltext ist erforderlich' },
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({ error: 'Clause text is required' }), { status: 400 });
     }
 
-    // Relevante Wissens-Chunks aus der Vektordatenbank abrufen
-    const relevantChunks = await getRelevantKnowledgeChunks(clauseText);
+    // HIER IHREN SPEZIFISCHEN PROMPT FÜR GEMINI EINFÜGEN
+    // Passen Sie den Prompt an, um die gewünschte JSON-Struktur zu erhalten.
+    const promptForGemini = `Analysiere die folgende Vertragsklausel im Kontext des Gesamtvertrages.
+    Klausel: "${clauseText}"
+    Kontext des Vertrags: "${contractContext || 'Kein zusätzlicher Kontext gegeben.'}"
     
-    // Kontext für die Analyse vorbereiten
-    const contextInfo = relevantChunks.map(chunk => 
-      `[${chunk.id}] ${chunk.textContent}`
-    ).join('\n\n');
+    Bewerte die Klausel nach dem Ampelsystem (status: 'green', 'yellow', 'red').
+    Gib eine detaillierte Erklärung (explanation) für deine Bewertung.
+    Optional: Gib eine ausführlichere Analyse (detailedAnalysis).
+    Optional: Schlage alternative Formulierungen vor (alternativeSuggestions als Array von Strings).
+    Optional: Nenne relevante Wissensdatenbank-Chunks (relevantKnowledgeBaseChunks als Array von Strings).
+    
+    Gib das Ergebnis als JSON-Objekt mit den Feldern status, explanation, detailedAnalysis, alternativeSuggestions, relevantKnowledgeBaseChunks zurück.
+    Beispiel für die Antwortstruktur:
+    {
+      "status": "red",
+      "explanation": "Diese Klausel ist kritisch, weil...",
+      "detailedAnalysis": "Weitere Details zur Analyse...",
+      "alternativeSuggestions": ["Vorschlag 1", "Vorschlag 2"],
+      "relevantKnowledgeBaseChunks": ["chunk_id_1", "chunk_id_2"]
+    }`;
 
-    // Systemanweisung für die Analyse
-    const systemPrompt = `Du bist ein KI-Rechtsexperte für Vertragsanalyse.
-Deine Aufgabe ist es, die gegebene Vertragsklausel zu analysieren und zu bewerten.
-
-Du erhältst als Kontext relevante rechtliche Regelungen, Urteile und Analysestandards, die du für deine Bewertung nutzen sollst.
-
-Bewerte die Klausel nach folgendem System:
-- ROT: Kritische Klausel, die abgelehnt oder grundlegend überarbeitet werden sollte
-- GELB: Verhandelbare Klausel, die angepasst werden sollte
-- GRÜN: Akzeptable Klausel, die ohne Änderungen angenommen werden kann
-
-Formatiere deine Ausgabe als JSON-Objekt mit folgender Struktur:
-{
-  "status": "red" | "yellow" | "green",
-  "explanation": "Detaillierte Erklärung deiner Bewertung",
-  "relevantChunks": ["IDs der relevanten Wissens-Chunks", "z.B. rule_red_flag_001"],
-  "alternativeSuggestions": ["Vorschlag 1 für eine bessere Formulierung", "Vorschlag 2", "Vorschlag 3"]
-}`;
-
-    // OpenAI API aufrufen
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { 
-          role: 'user', 
-          content: `Vertragsklausel aus dem Vertrag "${contractTitle || 'Unbenannter Vertrag'}":\n\n${clauseText}\n\nRelevante rechtliche Regelungen und Standards:\n\n${contextInfo}` 
-        }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
+    // Gemini API aufrufen
+    const generationConfig = {
+      // temperature: 0.5, // Anpassen nach Bedarf
+      // maxOutputTokens: 1500, // Anpassen nach Bedarf
+      responseMimeType: "application/json", // Wichtig für JSON-Antwort
+    };
+    
+    const chat = model.startChat({
+        generationConfig,
+        safetySettings,
     });
 
-    // Antwort extrahieren und parsen
-    const analysisText = response.choices[0].message.content;
+    const result = await chat.sendMessage(promptForGemini);
+    const response = result.response;
     
-    if (!analysisText) {
-      return NextResponse.json(
-        { error: 'Keine Antwort vom KI-Modell erhalten' },
-        { status: 500 }
-      );
-    }
+    // Stellen Sie sicher, dass response.text() die erwartete JSON-Struktur zurückgibt
+    const analysisResult: ClauseAnalysisResponse = JSON.parse(response.text());
 
-    // Analyse parsen
-    let analysis: ElementAnalysis;
-    
-    try {
-      analysis = JSON.parse(analysisText) as ElementAnalysis;
-      
-      // Validierung der Analyse
-      if (!analysis.status || !analysis.explanation || !analysis.relevantChunks) {
-        throw new Error('Unvollständige Analyse');
-      }
-    } catch (parseError) {
-      console.error('Fehler beim Parsen der Analyse:', parseError);
-      return NextResponse.json(
-        { error: 'Fehler beim Verarbeiten der Analysedaten' },
-        { status: 500 }
-      );
-    }
-
-    // Erfolgreiche Antwort
-    return NextResponse.json({
-      clauseId,
-      analysis,
-      knowledgeChunks: relevantChunks
-    });
-    
+    return new Response(JSON.stringify(analysisResult), { status: 200 });
   } catch (error) {
-    console.error('Fehler bei der Klauselanalyse:', error);
-    return NextResponse.json(
-      { error: 'Interner Serverfehler bei der Klauselanalyse' },
-      { status: 500 }
-    );
+    console.error('Error analyzing clause with Gemini:', error);
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return new Response(JSON.stringify({ error: 'Failed to analyze clause', details: errorMessage }), { status: 500 });
   }
 } 

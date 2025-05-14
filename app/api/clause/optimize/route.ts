@@ -1,73 +1,74 @@
-import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-// OpenAI-Client initialisieren
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Umgebungsvariable für den API-Schlüssel
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-export async function POST(req: NextRequest) {
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in environment variables.");
+}
+
+// GoogleGenerativeAI Client initialisieren
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-preview-0514" }); // Modell hier anpassbar
+
+// Sicherheits-Einstellungen (optional, aber empfohlen)
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
+
+export async function POST(req: Request) {
   try {
-    // Request-Body parsen
-    const body = await req.json();
-    const { clauseText, preferredStatus = 'green', optimizationNotes = '' } = body;
+    const { clause, issue, optimizationGoal } = await req.json();
 
-    if (!clauseText) {
-      return NextResponse.json(
-        { error: 'Klauseltext ist erforderlich' },
-        { status: 400 }
-      );
+    if (!clause || !issue) {
+      return new Response(JSON.stringify({ error: 'Clause and issue description are required' }), { status: 400 });
     }
 
-    // Systemanweisung für die Optimierung
-    const systemPrompt = `Du bist ein KI-Rechtsexperte für Vertragsoptimierung.
-Deine Aufgabe ist es, die gegebene Vertragsklausel zu optimieren, um sie rechtssicherer und ausgewogener zu gestalten.
+    // HIER IHREN SPEZIFISCHEN PROMPT FÜR GEMINI EINFÜGEN
+    const promptForGemini = `Optimiere die folgende Vertragsklausel.
+    Originalklausel: "${clause}"
+    Problembeschreibung: "${issue}"
+    Optimierungsziel: "${optimizationGoal || 'Risikominimierung für den Auftragnehmer und Verbesserung der rechtlichen Klarheit.'}"
+    
+    Schlage eine optimierte Version der Klausel vor. Gib nur den Text der optimierten Klausel zurück.`;
 
-Die optimierte Klausel soll folgende Kriterien erfüllen:
-- Sie soll den Status "${preferredStatus}" erreichen (grün = unbedenklich, gelb = verhandelbar, rot = kritisch)
-- Sie soll den gleichen grundlegenden Sinn und Zweck beibehalten
-- Sie soll klarer und präziser formuliert sein
-- Sie soll rechtssicher sein
-- Sie soll die Interessen beider Vertragsparteien angemessen berücksichtigen
+    // Gemini API aufrufen
+    const generationConfig = {
+      // temperature: 0.7, // Anpassen nach Bedarf
+      // maxOutputTokens: 1024, // Anpassen nach Bedarf
+    };
 
-Berücksichtige bei der Optimierung auch die vom Benutzer angegebenen Optimierungshinweise.`;
-
-    // OpenAI API aufrufen
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { 
-          role: 'user', 
-          content: `Zu optimierende Klausel:\n\n${clauseText}\n\nOptimierungshinweise:\n${optimizationNotes || 'Keine speziellen Hinweise angegeben.'}` 
-        }
-      ],
-      temperature: 0.4,
-      max_tokens: 2000,
+    const chat = model.startChat({
+        generationConfig,
+        safetySettings,
     });
 
-    // Antwort extrahieren
-    const optimizedText = response.choices[0].message.content?.trim();
-    
-    if (!optimizedText) {
-      return NextResponse.json(
-        { error: 'Keine Antwort vom KI-Modell erhalten' },
-        { status: 500 }
-      );
-    }
+    const result = await chat.sendMessage(promptForGemini);
+    const response = result.response;
+    const optimizedClause = response.text(); // Annahme: Gemini gibt direkt den Text zurück
 
-    // Erfolgreiche Antwort
-    return NextResponse.json({
-      originalClauseText: clauseText,
-      optimizedClauseText: optimizedText,
-      optimizationNotes: optimizationNotes
-    });
-    
+    return new Response(JSON.stringify({ optimizedClause }), { status: 200 });
   } catch (error) {
-    console.error('Fehler bei der Klauseloptimierung:', error);
-    return NextResponse.json(
-      { error: 'Interner Serverfehler bei der Klauseloptimierung' },
-      { status: 500 }
-    );
+    console.error('Error optimizing clause with Gemini:', error);
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return new Response(JSON.stringify({ error: 'Failed to optimize clause', details: errorMessage }), { status: 500 });
   }
 } 
