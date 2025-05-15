@@ -2,77 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Inter font if not already handled by next/font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 3.9%;
-
+    --background: 0 0% 100%; /* Base for light */
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%; /* Baulytics Blue */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%; /* Baulytics Blue for rings */
+    --radius: 0.75rem; /* Increased default radius */
 
-    --primary: 0 59% 41%;
-    --primary-foreground: 0 0% 98%;
-
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-
-    --destructive: 0 65% 45%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
-
-    --radius: 0.5rem;
+    /* Baulytics Epic Theme: Light Mode Gradient Palette (subtle) */
+    --light-gradient-start: hsl(210, 100%, 97%); /* Lighter Blue */
+    --light-gradient-mid: hsl(190, 100%, 98%);   /* Lighter Cyan */
+    --light-gradient-end: hsl(220, 100%, 97%);   /* Lighter Sky Blue */
   }
 
   .dark {
-    --background: 240 10% 10%;
-    --foreground: 0 0% 98%;
+    --background: 222 70% 12%; /* Dark Blue/Indigo base */
+    --foreground: 210 40% 98%;
+    --card: 224 71% 15%; /* Slightly lighter than bg for cards */
+    --card-foreground: 210 40% 98%;
+    --popover: 224 71% 15%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 218, 93%, 61%; /* Brighter Baulytics Blue for dark mode */
+    --primary-foreground: 210 40% 98%; 
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 25%; /* Darker border */
+    --input: 217.2 32.6% 25%;
+    --ring: 218, 93%, 61%; /* Brighter Baulytics Blue for rings */
 
-    --card: 240 10% 12%;
-    --card-foreground: 0 0% 98%;
-
-    --popover: 240 10% 12%;
-    --popover-foreground: 0 0% 98%;
-
-    --primary: 0 59% 41%;
-    --primary-foreground: 0 0% 98%;
-
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-
-    --destructive: 0 65% 45%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    /* Baulytics Epic Theme: Dark Mode Gradient Palette */
+    --dark-gradient-start: hsl(220, 70%, 12%);  /* Deep Blue */
+    --dark-gradient-mid1: hsl(250, 60%, 15%);  /* Indigo */
+    --dark-gradient-mid2: hsl(200, 50%, 18%);  /* Dark Petrol/Emerald */
+    --dark-gradient-end: hsl(230, 65%, 14%);   /* Slate Blue */
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border; 
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Light Mode Body Background */
+  body:not(.dark) {
+    background-image: linear-gradient(120deg, var(--light-gradient-start), var(--light-gradient-mid), var(--light-gradient-end));
+    background-size: 300% 300%;
+    @apply animate-rolling-gradient-light;
+  }
+
+  /* Dark Mode Body Background */
+  .dark body {
+    background-image: linear-gradient(120deg, var(--dark-gradient-start), var(--dark-gradient-mid1), var(--dark-gradient-mid2), var(--dark-gradient-end));
+    background-size: 400% 400%; /* Larger size for more color travel with 4 stops */
+    @apply animate-rolling-gradient-dark;
+  }
+
+  /* Modern Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted/50 rounded-full border-2 border-transparent bg-clip-content;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted;
+  }
+  
+  /* Enhanced Focus Visible (Global Fallback) */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Custom utility for text brand gradient */
+@layer utilities {
+  .text-brand-gradient {
+    @apply bg-gradient-to-r from-brand-blue to-brand-purple bg-clip-text text-transparent;
+  }
+  /* Ensure brand colors are defined for the gradient if not already in tailwind.config */
+}
+
+/* Scrollbar Styling - for a more modern look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Example of a subtle glow utility class if not using JS for this */
+.subtle-glow-element {
+  animation: subtle-glow 2.5s infinite alternate ease-in-out;
 }
 
 /* CSS für die Highlight-Animation von Vertragsklauseln */

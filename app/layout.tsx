@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="de" suppressHydrationWarning>
-        <body className={cn("min-h-screen bg-background font-sans antialiased", inter.className)}>
+        <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <ConvexClientProvider>
               <TooltipProvider>

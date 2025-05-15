@@ -4,6 +4,18 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ## [Unreleased]
 
+[TIMESTAMP: 2024-07-30 11:45:00]
+TYPE: FEATURE
+SCOPE: components/ui/resizable.tsx
+DESCRIPTION: Themed ResizableHandle component. Base style set to bg-border/70. Enhanced focus ring. Added distinct background colors and increased thickness for hover and drag states using data-attributes. The optional grip icon (withHandle) container is now styled with a glass effect (bg-background/70, backdrop-blur-sm, shadow-lg), and the icon itself is larger with themed text color. Improved touch/drag area for the handle.
+REASON: Align Resizable component with the Baulytics Epic Theme and improve interactivity and visual feedback.
+
+[TIMESTAMP: 2024-07-30 11:30:00]
+TYPE: FEATURE
+SCOPE: components/ui/pagination.tsx
+DESCRIPTION: Themed Pagination component. PaginationContent gap increased. PaginationLink styled for active (brand-gradient background, light text) and normal (ghost-like with themed hover/focus) states. Consistent rounded corners and transitions applied. PaginationEllipsis text color updated.
+REASON: Align Pagination component with the Baulytics Epic Theme and improve visual consistency.
+
 ### Added
 - **Stufe 5: Export-Funktionalität**
     - **`components/contract-editor-with-contract.tsx`**:
@@ -233,5 +245,200 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 - Alte Logik zur Erstellung kleiner Analyse-Chunks (`createAnalysisChunksFromStructuredElements`) entfernt.
 - Veraltete Status-Literale und Fortschrittsfelder (`totalChunks`, `processedChunks`), die sich auf die alte Chunking-Logik bezogen, entfernt bzw. ersetzt.
 - Veraltetes Feld `analysisProtocol` aus der Vertragsdatenstruktur entfernt (war nicht mehr im Schema definiert und wurde durch `structuredContractElements` abgelöst).
+
+[TIMESTAMP: 2023-09-01 14:35:22]
+TYPE: FEATURE
+SCOPE: GemDynamicsLogo, SVG-Animation
+DESCRIPTION: Pixelgenaue Optimierung des GEM DYNAMICS Logos nach Referenzbild, einschließlich Animation mit Lichteffekt.
+REASON: Verbesserung des visuellen Erscheinungsbilds für Markenintegrität
+
+[TIMESTAMP: 2023-09-15 16:45:30]
+TYPE: FEATURE
+SCOPE: UI/UX, Theming
+DESCRIPTION: Implementation eines neuen GEM DYNAMICS Design Systems mit modernem, futuristischem, technik-orientiertem Aussehen.
+REASON: Verbesserung der visuellen Identität und Benutzererfahrung.
+
+DETAILS:
+- Dark- und Light-Mode optimiert mit GEM DYNAMICS Farbpalette
+- Neue Farbvariablen und -schema für beide Modi
+- Inter als primäre Schriftart integriert
+- Glow-Effekte und animierte Farbverläufe für UI-Elemente
+- Verbesserte Hover- und Interaktionseffekte
+- Erweiterte Button- und Card-Komponenten mit neuen Eigenschaften
+- Verschiedene visuelle Verbesserungen für eine modernere Ästhetik
+
+[TIMESTAMP: 2024-05-16 11:00:00]
+TYPE: FEATURE
+SCOPE: components/ui/dialog.tsx
+DESCRIPTION: Refined Dialog component styling to align with 'Baulytics Epic Theme'. Adjusted close button, paddings, and text styles.
+REASON: Theme consistency and improved visual appeal.
+
+[TIMESTAMP: 2024-05-16 11:05:00]
+TYPE: FEATURE
+SCOPE: components/ui/accordion.tsx
+DESCRIPTION: Updated Accordion component with 'Baulytics Epic Theme' styles. Enhanced interactive feedback, typography, borders, and animations.
+REASON: Theme consistency and improved user experience.
+
+[TIMESTAMP: 2024-05-16 11:10:00]
+TYPE: FEATURE
+SCOPE: components/ui/badge.tsx
+DESCRIPTION: Themed Badge component for 'Baulytics Epic Theme'. Default variant now uses brand gradient, added 'glass' variant, and updated existing variant styles.
+REASON: Enhanced visual variety and theme alignment.
+
+[TIMESTAMP: 2024-05-16 11:25:00]
+TYPE: FEATURE
+SCOPE: components/ui/sidebar.tsx
+DESCRIPTION: Extensively themed Sidebar component and its numerous sub-components to match the 'Baulytics Epic Theme'. Adjusted backgrounds (glassmorphism), borders, text colors, hover/active states for navigation links, icons, inputs, and other elements within the sidebar.
+REASON: Comprehensive theme integration for a core navigation element, ensuring a consistent and modern user experience.
+
+[TIMESTAMP: 2024-05-16 11:30:00]
+TYPE: FEATURE
+SCOPE: components/ui/table.tsx
+DESCRIPTION: Updated Table component styles for 'Baulytics Epic Theme'. Implemented themed table wrapper, adjusted borders, header/footer backgrounds, row hover/selected states, and text styles for improved readability and visual consistency.
+REASON: Theme alignment for data presentation and improved visual appeal.
+
+[TIMESTAMP: 2024-07-30 10:30:00]
+TYPE: REFACTOR
+SCOPE: components/ui/table.tsx
+DESCRIPTION: Die Table-Komponente wurde gemäß dem "Baulytics Epic Theme" überarbeitet. Dies umfasst Anpassungen an Rändern, Hintergründen (inkl. Glaseffekt für den Container), Hover-Effekten, Typografie (insbesondere Header und Zellen-Padding), Trennlinien und optionalem dezentem Zebra-Striping. Der Header ist nun deutlicher abgegrenzt und die gesamte Tabelle hat ein moderneres, abgerundetes Aussehen.
+REASON: Anpassung an das neue UI-Theme für ein konsistentes und visuell ansprechendes Design.
+
+[TIMESTAMP: 2024-07-30 10:45:00]
+TYPE: REFACTOR
+SCOPE: components/ui/tooltip.tsx
+DESCRIPTION: Die TooltipContent-Komponente wurde an das "Baulytics Epic Theme" angepasst. Dies beinhaltet abgerundete Ecken (`rounded-lg`), einen feineren Rand (`border-border/60`), einen Glaseffekt (`bg-popover/80 backdrop-blur-lg`), einen deutlicheren Schatten (`shadow-lg`) und die Beibehaltung der bestehenden Animationen für ein konsistentes Erscheinungsbild.
+REASON: Verbesserung der visuellen Konsistenz und des Erscheinungsbilds von Tooltips gemäß dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 11:00:00]
+TYPE: REFACTOR
+SCOPE: components/ui/sheet.tsx
+DESCRIPTION: Die Sheet-Komponente wurde umfassend an das "Baulytics Epic Theme" angepasst. `SheetOverlay` verwendet nun einen `backdrop-blur-sm` Effekt. `SheetContent` hat einen stärkeren Glaseffekt (`bg-card/90 backdrop-blur-xl`), einen `shadow-2xl` und positionsabhängige abgerundete Ecken (`rounded-*-2xl`). Das Schließen-Icon sowie `SheetHeader`, `SheetFooter`, `SheetTitle` und `SheetDescription` wurden ebenfalls thematisch überarbeitet (Padding, Ränder, Typografie) für ein kohärentes Design.
+REASON: Sicherstellung der visuellen Konsistenz von Off-Canvas-Elementen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 11:15:00]
+TYPE: REFACTOR
+SCOPE: components/ui/select.tsx
+DESCRIPTION: Die Select-Komponente und ihre Sub-Komponenten (`SelectTrigger`, `SelectContent`, `SelectItem`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton`) wurden an das "Baulytics Epic Theme" angepasst. Dies umfasst Glaseffekte für Trigger und Content-Bereich, themenkonforme Farben, Ränder, Hover/Fokus-Zustände (konsistent mit Input und DropdownMenu), angepasste Icons und Animationen.
+REASON: Vereinheitlichung des Erscheinungsbilds von Formular- und Auswahl-Steuerelementen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 11:30:00]
+TYPE: REFACTOR
+SCOPE: components/ui/menubar.tsx
+DESCRIPTION: Die Menubar-Komponente und alle ihre Sub-Komponenten wurden umfassend an das "Baulytics Epic Theme" angepasst. Der `Menubar`-Container selbst hat einen dezenten Glaseffekt. `MenubarTrigger` ähnelt den `NavigationMenuTrigger`-Stilen. Alle Dropdown-artigen Elemente (`MenubarContent`, `MenubarItem`, `MenubarCheckboxItem`, `MenubarRadioItem`, `MenubarSubContent`, etc.) wurden konsistent zu `DropdownMenu` gestaltet, inklusive Glaseffekten, Padding, Hover/Fokus-Zuständen, Icons und Animationen. Ein Tippfehler bei `MenubarShortcut.displayname` wurde zu `displayName` korrigiert.
+REASON: Konsistente Darstellung von Menüleisten und deren Untermenüs im Einklang mit dem globalen UI-Theme und anderen Navigations-/Dropdown-Komponenten.
+
+[TIMESTAMP: 2024-07-30 11:45:00]
+TYPE: REFACTOR
+SCOPE: components/ui/context-menu.tsx
+DESCRIPTION: Die ContextMenu-Komponente und ihre Sub-Komponenten (`ContextMenuContent`, `ContextMenuItem`, `ContextMenuCheckboxItem`, `ContextMenuRadioItem`, `ContextMenuLabel`, `ContextMenuSeparator`, `ContextMenuShortcut`, `ContextMenuSubTrigger`, `ContextMenuSubContent`) wurden an das "Baulytics Epic Theme" angepasst. Die Stile wurden direkt von der `DropdownMenu`-Komponente übernommen, um eine vollständige visuelle Konsistenz zu gewährleisten. Dies beinhaltet Glaseffekte für Content-Bereiche, themenkonforme Farben, Ränder, Paddings, Hover/Fokus-Effekte und Animationen.
+REASON: Sicherstellung eines einheitlichen Erscheinungsbilds für alle kontextbezogenen Menüs gemäß dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 12:00:00]
+TYPE: REFACTOR
+SCOPE: components/ui/alert.tsx
+DESCRIPTION: Die Alert-Komponente (`Alert`, `AlertTitle`, `AlertDescription`) wurde an das "Baulytics Epic Theme" angepasst. Der Basis-Container verwendet nun einen dezenten Glaseffekt (`bg-card/70 backdrop-blur-md`), abgerundete Ecken (`rounded-xl`) und einen themenkonformen Rand. `AlertTitle` und `AlertDescription` wurden typografisch angepasst. Die Varianten `default` und `destructive` wurden überarbeitet, um themenkonforme Farben (inkl. Icon-Farben) und für `destructive` einen spezifischen Hintergrund mit Glaseffekt (`bg-destructive/20 backdrop-blur-md`) zu nutzen.
+REASON: Visuelle Angleichung der Alert-Komponente an das globale UI-Theme für eine konsistente Benutzererfahrung bei Benachrichtigungen.
+
+[TIMESTAMP: 2024-07-30 12:15:00]
+TYPE: REFACTOR
+SCOPE: components/ui/alert-dialog.tsx
+DESCRIPTION: Die AlertDialog-Komponente und ihre Sub-Komponenten (`AlertDialogOverlay`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogFooter`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogAction`, `AlertDialogCancel`) wurden an das "Baulytics Epic Theme" angepasst. Die Stile orientieren sich stark an der bereits thematisierten `Dialog`-Komponente (Glaseffekte für Overlay und Content, Ränder, Schatten, Typografie) und den `Button`-Varianten (`brand_gradient` für Action, `outline` für Cancel).
+REASON: Konsistente Darstellung von Bestätigungsdialogen im Einklang mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 12:30:00]
+TYPE: REFACTOR
+SCOPE: components/ui/avatar.tsx
+DESCRIPTION: Die Avatar-Komponente (`Avatar`, `AvatarFallback`) wurde an das "Baulytics Epic Theme" angepasst. `Avatar` (der Container) erhielt einen dezenten Schatten, Ring und Hover-Effekt. `AvatarFallback` verwendet nun den `brand-gradient` als Hintergrund und hat angepasste Textstile (Schriftgröße, -gewicht, Farbe) für eine bessere Lesbarkeit der Initialen.
+REASON: Visuelle Angleichung der Avatar-Komponente an das globale UI-Theme.
+
+[TIMESTAMP: 2024-07-30 12:45:00]
+TYPE: REFACTOR
+SCOPE: components/ui/popover.tsx
+DESCRIPTION: Die Popover-Komponente (`PopoverContent`) wurde an das "Baulytics Epic Theme" angepasst. Die Stile für `PopoverContent` wurden von `DropdownMenuContent` abgeleitet, um Konsistenz zu gewährleisten. Dies beinhaltet Glaseffekte (`bg-popover/80 backdrop-blur-lg`), themenkonforme Farben, Ränder (`border-border/60`), Schatten (`shadow-2xl`), Padding und Animationen. Die Breitenbeschränkungen wurden angepasst (`w-auto min-w-[12rem] max-w-xs`), um flexibleren Inhalt zu ermöglichen, und das Padding wurde leicht reduziert (`p-3`).
+REASON: Sicherstellung eines einheitlichen Erscheinungsbilds für Popover-Elemente gemäß dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 13:00:00]
+TYPE: REFACTOR
+SCOPE: components/ui/calendar.tsx
+DESCRIPTION: Die Calendar-Komponente wurde umfassend an das "Baulytics Epic Theme" angepasst. Dies beinhaltet einen Hauptcontainer mit Glaseffekt (`bg-card/80 backdrop-blur-lg`), thematisch gestaltete Navigationselemente, angepasste Typografie für Monats/Jahresüberschriften und Wochentage sowie detaillierte Stile für Tageszellen (Standard, ausgewählt mit Brand-Gradient, heute, außerhalb des Monats, deaktiviert, Bereichsauswahl) inklusive konsistenter Hover-, Fokus- und Rundungseffekte.
+REASON: Visuelle Angleichung der Kalender-Komponente an das globale UI-Theme für eine einheitliche und moderne Benutzererfahrung.
+
+[TIMESTAMP: 2024-07-30 13:15:00]
+TYPE: REFACTOR
+SCOPE: components/ui/checkbox.tsx
+DESCRIPTION: Die Checkbox-Komponente wurde an das "Baulytics Epic Theme" angepasst. Änderungen umfassen eine vergrößerte Darstellung (`h-5 w-5`), abgerundete Ecken (`rounded-md`), themenkonforme Ränder (`border-border/70`) und einen transparenten Hintergrund im Normalzustand. Im aktivierten Zustand wird der `brand-gradient` als Hintergrund und ein transparenter Rand verwendet. Fokus- (`ring-primary`) und Deaktiviert-Zustände (`opacity-60`) wurden ebenfalls angepasst.
+REASON: Vereinheitlichung des Erscheinungsbilds von Formular-Steuerelementen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 13:30:00]
+TYPE: REFACTOR
+SCOPE: components/ui/radio-group.tsx
+DESCRIPTION: Die `RadioGroupItem`-Komponente wurde an das "Baulytics Epic Theme" angepasst. Die Änderungen umfassen eine vergrößerte Darstellung (`h-5 w-5`), einen themenkonformen Rand (`border-border/70`) im Normalzustand. Im aktivierten Zustand wird der Rand sowie der Indikator (via `text-primary`) in der Primärfarbe dargestellt. Fokus- (`ring-primary`) und Deaktiviert-Zustände (`opacity-60`) wurden ebenfalls an das Theme angepasst.
+REASON: Konsistenz im Erscheinungsbild von Formular-Steuerelementen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 13:45:00]
+TYPE: REFACTOR
+SCOPE: components/ui/switch.tsx
+DESCRIPTION: Die Switch-Komponente wurde an das "Baulytics Epic Theme" angepasst. Der Track (Hintergrund) verwendet nun den `brand-gradient` im aktivierten Zustand und `bg-border/40` im deaktivierten Zustand. Der Thumb (Schieber) hat einen `bg-white` Hintergrund für besseren Kontrast. Fokus- (`ring-primary`) und Deaktiviert-Stile (`opacity-60`) wurden ebenfalls aktualisiert.
+REASON: Konsistenz im Erscheinungsbild von Formular-Steuerelementen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 14:00:00]
+TYPE: REFACTOR
+SCOPE: components/ui/slider.tsx
+DESCRIPTION: Die Slider-Komponente wurde an das "Baulytics Epic Theme" angepasst. Der Track ist nun schlanker (`h-1.5`) und hat einen `bg-border/40` Hintergrund. Der Range (Fortschritt) verwendet den `brand-gradient`. Der Thumb ist `bg-white` mit `shadow-lg` und ohne direkten Rand. Fokus- (`ring-primary`) und Deaktiviert-Stile (`opacity-60`) wurden ebenfalls aktualisiert.
+REASON: Visuelle Angleichung der Slider-Komponente an das globale UI-Theme.
+
+[TIMESTAMP: 2024-07-30 14:15:00]
+TYPE: REFACTOR
+SCOPE: components/ui/progress.tsx
+DESCRIPTION: Die Progress-Komponente wurde an das "Baulytics Epic Theme" angepasst. Der Track (Hintergrund) ist nun schlanker (`h-2`) und verwendet `bg-border/30`. Der Indikator (Fortschrittsbalken) verwendet den `brand-gradient`.
+REASON: Visuelle Angleichung der Progress-Komponente an das globale UI-Theme für eine moderne Darstellung von Fortschrittsanzeigen.
+
+[TIMESTAMP: 2024-07-30 14:25:00]
+TYPE: REFACTOR
+SCOPE: components/ui/skeleton.tsx
+DESCRIPTION: Die Skeleton-Komponente wurde an das "Baulytics Epic Theme" angepasst. Der Hintergrund verwendet nun `bg-border/25` für eine subtile Darstellung auf den thematisierten Hintergründen, während die `animate-pulse` Animation beibehalten wird.
+REASON: Visuelle Angleichung der Skeleton-Komponente an das globale UI-Theme.
+
+[TIMESTAMP: 2024-07-30 14:35:00]
+TYPE: REFACTOR
+SCOPE: components/ui/separator.tsx
+DESCRIPTION: Die Separator-Komponente wurde an das "Baulytics Epic Theme" angepasst. Sie verwendet nun `bg-border/70` für eine subtilere Trennlinie, die gut mit den thematisierten Hintergründen harmoniert.
+REASON: Visuelle Angleichung der Separator-Komponente an das globale UI-Theme.
+
+[TIMESTAMP: 2024-07-30 14:45:00]
+TYPE: REFACTOR
+SCOPE: components/ui/scroll-area.tsx
+DESCRIPTION: Die ScrollArea-Komponente wurde an das "Baulytics Epic Theme" angepasst. Der Scrollbar-Track wurde verschlankt (`w-2`/`h-2`). Der Thumb verwendet nun themenkonforme Indigo-Farbtöne mit Hover-Effekt (`bg-indigo-500/60 hover:bg-indigo-500/80 dark:bg-indigo-400/50 dark:hover:bg-indigo-400/70`) für eine moderne Optik.
+REASON: Visuelle Angleichung der ScrollArea an das globale UI-Theme und Verbesserung des Scrollbar-Erscheinungsbildes.
+
+[TIMESTAMP: 2024-07-30 14:55:00]
+TYPE: REFACTOR
+SCOPE: components/ui/hover-card.tsx
+DESCRIPTION: Die `HoverCardContent`-Komponente wurde an das "Baulytics Epic Theme" angepasst, analog zu `PopoverContent` und `DropdownMenuContent`. Dies beinhaltet einen stärkeren Glaseffekt (`bg-popover/85 backdrop-blur-xl`), themenkonforme Ränder (`border-border/50`), Schatten (`shadow-2xl`), größere Rundungen (`rounded-xl`) und flexiblere Breitenangaben. Animationen wurden beibehalten.
+REASON: Konsistente Darstellung von schwebenden Informationskarten mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 15:10:00]
+TYPE: REFACTOR
+SCOPE: components/ui/toast.tsx
+DESCRIPTION: Die Toast-Komponenten (`Toast`, `ToastClose`, `ToastAction`, `ToastTitle`, `ToastDescription`) wurden umfassend an das "Baulytics Epic Theme" angepasst. `Toast` verwendet nun Glaseffekte (`bg-card/85 backdrop-blur-xl` für Default, `bg-destructive/85 backdrop-blur-xl` für Destructive), themenkonforme Ränder, Schatten (`shadow-xl`) und größere Rundungen (`rounded-xl`). `ToastClose` wurde neu positioniert und gestylt. `ToastAction` ähnelt nun thematisierten Outline-Buttons. `ToastTitle` und `ToastDescription` wurden typografisch angepasst für bessere Lesbarkeit und Konsistenz.
+REASON: Konsistente Darstellung von Benachrichtigungen mit dem globalen UI-Theme.
+
+[TIMESTAMP: 2024-07-30 11:15:00]
+TYPE: FEATURE
+SCOPE: components/ui/carousel.tsx
+DESCRIPTION: Themed Carousel component. Adjusted CarouselContent to include rounded corners. Themed CarouselPrevious and CarouselNext buttons: applied 'glass' variant, increased size, adjusted positioning for better proximity to content, added hover effects, consistent focus rings, and clearer disabled states. Updated icon sizes and text colors for hover states.
+REASON: Align Carousel component with the Baulytics Epic Theme visual style and improve usability.
+
+[TIMESTAMP: 2024-07-30 11:30:00]
+TYPE: FEATURE
+SCOPE: components/ui/pagination.tsx
+DESCRIPTION: Themed Pagination component. PaginationContent gap increased. PaginationLink styled for active (brand-gradient background, light text) and normal (ghost-like with themed hover/focus) states. Consistent rounded corners and transitions applied. PaginationEllipsis text color updated.
+REASON: Align Pagination component with the Baulytics Epic Theme and improve visual consistency.
+
+[TIMESTAMP: 2024-07-30 11:15:00]
+TYPE: FEATURE
+SCOPE: components/ui/carousel.tsx
+DESCRIPTION: Themed Carousel component. Adjusted CarouselContent to include rounded corners. Themed CarouselPrevious and CarouselNext buttons: applied 'glass' variant, increased size, adjusted positioning for better proximity to content, added hover effects, consistent focus rings, and clearer disabled states. Updated icon sizes and text colors for hover states.
+REASON: Align Carousel component with the Baulytics Epic Theme visual style and improve usability.
 
 --- 

@@ -157,7 +157,7 @@ const CarouselContent = React.forwardRef<
   const { carouselRef, orientation } = useCarousel()
 
   return (
-    <div ref={carouselRef} className="overflow-hidden">
+    <div ref={carouselRef} className={cn("overflow-hidden rounded-lg", className)}>
       <div
         ref={ref}
         className={cn(
@@ -203,20 +203,22 @@ const CarouselPrevious = React.forwardRef<
   return (
     <Button
       ref={ref}
-      variant={variant}
+      variant="glass"
       size={size}
       className={cn(
-        "absolute  h-8 w-8 rounded-full",
+        "absolute z-10 h-10 w-10 rounded-full transition-opacity duration-300 ease-in-out group-hover:opacity-100",
+        "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-primary",
         orientation === "horizontal"
-          ? "-left-12 top-1/2 -translate-y-1/2"
-          : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
+          ? "-left-4 top-1/2 -translate-y-1/2"
+          : "-top-4 left-1/2 -translate-x-1/2 rotate-90",
+        !canScrollPrev && "opacity-50 cursor-not-allowed",
         className
       )}
       disabled={!canScrollPrev}
       onClick={scrollPrev}
       {...props}
     >
-      <ArrowLeft className="h-4 w-4" />
+      <ArrowLeft className="h-5 w-5 text-foreground/80 group-hover:text-foreground" />
       <span className="sr-only">Previous slide</span>
     </Button>
   )
@@ -232,20 +234,22 @@ const CarouselNext = React.forwardRef<
   return (
     <Button
       ref={ref}
-      variant={variant}
+      variant="glass"
       size={size}
       className={cn(
-        "absolute h-8 w-8 rounded-full",
+        "absolute z-10 h-10 w-10 rounded-full transition-opacity duration-300 ease-in-out group-hover:opacity-100",
+        "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-primary",
         orientation === "horizontal"
-          ? "-right-12 top-1/2 -translate-y-1/2"
-          : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
+          ? "-right-4 top-1/2 -translate-y-1/2"
+          : "-bottom-4 left-1/2 -translate-x-1/2 rotate-90",
+        !canScrollNext && "opacity-50 cursor-not-allowed",
         className
       )}
       disabled={!canScrollNext}
       onClick={scrollNext}
       {...props}
     >
-      <ArrowRight className="h-4 w-4" />
+      <ArrowRight className="h-5 w-5 text-foreground/80 group-hover:text-foreground" />
       <span className="sr-only">Next slide</span>
     </Button>
   )

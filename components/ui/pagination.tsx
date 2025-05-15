@@ -20,7 +20,7 @@ const PaginationContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ul
     ref={ref}
-    className={cn("flex flex-row items-center gap-1", className)}
+    className={cn("flex flex-row items-center gap-2", className)}
     {...props}
   />
 ))
@@ -49,9 +49,14 @@ const PaginationLink = ({
     aria-current={isActive ? "page" : undefined}
     className={cn(
       buttonVariants({
-        variant: isActive ? "outline" : "ghost",
+        variant: isActive ? "default" : "ghost",
         size,
       }),
+      "transition-colors duration-200 ease-in-out",
+      isActive
+        ? "brand-gradient border-transparent text-primary-foreground hover:opacity-90 focus-visible:ring-offset-0 focus-visible:ring-transparent"
+        : "text-foreground/80 hover:bg-accent/75 hover:text-foreground focus-visible:bg-accent/75 focus-visible:text-foreground focus-visible:ring-primary",
+      "rounded-lg",
       className
     )}
     {...props}
@@ -97,7 +102,7 @@ const PaginationEllipsis = ({
 }: React.ComponentProps<"span">) => (
   <span
     aria-hidden
-    className={cn("flex h-9 w-9 items-center justify-center", className)}
+    className={cn("flex h-9 w-9 items-center justify-center text-muted-foreground", className)}
     {...props}
   >
     <MoreHorizontal className="h-4 w-4" />
