@@ -6,9 +6,9 @@ import { ConvexClientProvider } from "../components/convex-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ClerkProvider } from "@clerk/nextjs"
+import { PageTransitionWrapper } from "@/components/animation/page-transition-wrapper"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -38,7 +38,11 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <ConvexClientProvider>
               <TooltipProvider>
-                <DashboardShell>{children}</DashboardShell>
+                <DashboardShell>
+                  <PageTransitionWrapper>
+                    {children}
+                  </PageTransitionWrapper>
+                </DashboardShell>
               </TooltipProvider>
             </ConvexClientProvider>
           </ThemeProvider>

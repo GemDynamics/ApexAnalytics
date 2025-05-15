@@ -4,6 +4,28 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ## [Unreleased]
 
+[TIMESTAMP: {{YYYY-MM-DD HH:MM:SS}}]
+TYPE: BUGFIX
+SCOPE: app/layout.tsx, components/animation/page-transition-wrapper.tsx
+DESCRIPTION: Behebt einen Build-Fehler ("It's currently unsupported to use 'export *' in a client boundary") im Zusammenhang mit `framer-motion`. Die Seitenübergangsanimationen wurden in eine dedizierte Client-Komponente (`components/animation/page-transition-wrapper.tsx`) ausgelagert, die `"use client"` verwendet. Der `key` für `motion.div` innerhalb von `AnimatePresence` wird nun stabil über `usePathname` generiert, anstatt `Math.random()` zu verwenden. Der ungenutzte Import `ThemeToggle` wurde aus `app/layout.tsx` entfernt.
+REASON: Behebung eines kritischen Build-Fehlers und Verbesserung der Robustheit und Korrektheit der Seitenübergangsanimationen gemäß Next.js Best Practices.
+
+[TIMESTAMP: 2024-07-30 12:20:00]
+TYPE: FEATURE
+SCOPE: Gesamte Webseite, app/layout.tsx, app/demo/page.tsx
+DESCRIPTION: Framer Motion wurde zur Webseite hinzugefügt, um Animationen zu ermöglichen. Dies beinhaltet:
+1. Installation von `framer-motion`.
+2. Implementierung grundlegender Seitenübergangsanimationen (Fade-In/Slide) in `app/layout.tsx` mittels `AnimatePresence` und `motion.div`.
+3. Hinzufügen einer beispielhaften Eingangs-Animation (Fade-In/Slide-Up) zu einem Container auf der `app/demo/page.tsx`.
+4. Ergänzung der `app/demo/page.tsx` mit der `"use client"`-Direktive, um Framer Motion zu ermöglichen.
+REASON: Verbesserung der Benutzererfahrung durch moderne und ansprechende Animationen, passend zum "Baulytics Epic Theme". Legt die Grundlage für weitere Animationen auf der gesamten Webseite.
+
+[TIMESTAMP: 2024-07-30 12:05:00]
+TYPE: STYLE
+SCOPE: app/demo/page.tsx
+DESCRIPTION: Added an ArrowLeft lucide icon to the "Zurück zur Startseite" link for improved visual affordance. Adjusted link styling to accommodate the icon using flexbox.
+REASON: Enhance UI and adhere to the new guideline of using lucide icons.
+
 [TIMESTAMP: 2024-07-30 12:00:00]
 TYPE: STYLE
 SCOPE: app/demo/page.tsx

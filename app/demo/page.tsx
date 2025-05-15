@@ -1,5 +1,9 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
 import ContractStructureView from '../components/ContractStructureView';
 
 // Typen für die Anwendung
@@ -151,13 +155,19 @@ export default function DemoPage() {
           <h1 className="text-3xl font-bold text-foreground">Demo: Vertragsanalyse</h1>
           <Link 
             href="/"
-            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg text-center transition-all"
+            className="inline-flex items-center justify-center bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg transition-all gap-2"
           >
+            <ArrowLeft className="h-5 w-5" />
             Zurück zur Startseite
           </Link>
         </div>
         
-        <div className="bg-card/50 backdrop-blur-md rounded-xl shadow-lg p-6 mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+          className="bg-card/50 backdrop-blur-md rounded-xl shadow-lg p-6 mb-8"
+        >
           <p className="text-muted-foreground mb-4">
             Diese Demo zeigt eine fertig analysierte Vertragsanalyse mit typischen problematischen Klauseln.
             Jede Klausel wurde automatisch analysiert und nach dem Ampelprinzip bewertet:
@@ -181,7 +191,7 @@ export default function DemoPage() {
           <p className="text-muted-foreground">
             Klicken Sie auf eine Klausel, um die detaillierte Analyse einzusehen.
           </p>
-        </div>
+        </motion.div>
         
         <ContractStructureView 
           contract={demoContract}
