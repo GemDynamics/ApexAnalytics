@@ -198,7 +198,7 @@ function ContractUploadForm() {
 // Haupt-Dashboard Komponente
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="max-w-4xl w-full bg-card rounded-2xl shadow-xl p-8 md:p-12">
         <h1 className="text-4xl md:text-5xl font-bold text-center mb-8 text-foreground">
           KI-gestützte Vertragsanalyse

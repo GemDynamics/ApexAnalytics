@@ -4,6 +4,12 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ## [Unreleased]
 
+[TIMESTAMP: 2024-07-30 12:00:00]
+TYPE: STYLE
+SCOPE: app/demo/page.tsx
+DESCRIPTION: Adjusted the background of the main informational container on the demo page to use a semi-transparent glassmorphism effect (bg-card/50 backdrop-blur-md). This allows the global rolling gradient background to be visible through the container, enhancing the visual consistency with the Baulytics Epic Theme and eliminating the 'ugly rectangle' effect previously caused by an opaque background.
+REASON: Improve visual integration of the demo page with the new global theme, ensuring the rolling gradient is not obscured while maintaining content readability.
+
 [TIMESTAMP: 2024-07-30 11:45:00]
 TYPE: FEATURE
 SCOPE: components/ui/resizable.tsx

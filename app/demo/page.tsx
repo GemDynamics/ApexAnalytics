@@ -145,7 +145,7 @@ const demoAnalyses: Record<string, ElementAnalysis> = {
 
 export default function DemoPage() {
   return (
-    <main className="min-h-screen bg-background py-12">
+    <main className="min-h-screen py-12">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-foreground">Demo: Vertragsanalyse</h1>
@@ -157,7 +157,7 @@ export default function DemoPage() {
           </Link>
         </div>
         
-        <div className="bg-card rounded-xl shadow-lg p-6 mb-8">
+        <div className="bg-card/50 backdrop-blur-md rounded-xl shadow-lg p-6 mb-8">
           <p className="text-muted-foreground mb-4">
             Diese Demo zeigt eine fertig analysierte Vertragsanalyse mit typischen problematischen Klauseln.
             Jede Klausel wurde automatisch analysiert und nach dem Ampelprinzip bewertet:
