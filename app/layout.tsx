@@ -40,7 +40,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet" precedence="default" />
         {/* Poppins Font Links END */}
         <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
             <ConvexClientProvider>
               <TooltipProvider>
                 <DashboardShell>

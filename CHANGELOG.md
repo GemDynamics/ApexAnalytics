@@ -552,4 +552,10 @@ SCOPE: components/dashboard-header.tsx
 DESCRIPTION: Die `DiamondLogo`-Komponente (aus `components/ui/gd-logo.tsx`) und ihr Import wurden vorübergehend aus dem `DashboardHeader` entfernt.
 REASON: Gemäß Benutzeranweisung, das Logo vorerst aus dem Header zu entfernen.
 
+[TIMESTAMP: 2024-05-16 15:45:00]
+TYPE: FEATURE
+SCOPE: app/layout.tsx, Theme
+DESCRIPTION: Der Dark Mode wurde als Standard-Theme für die Anwendung festgelegt. Die `defaultTheme`-Prop des `ThemeProvider` in `app/layout.tsx` wurde von "system" auf "dark" geändert.
+REASON: Anpassung des initialen Themes gemäß Benutzeranforderung.
+
 --- 
