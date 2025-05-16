@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "Baulytics",
+  name: "ApexAnalytics",
   description: "Automatisierte Prüfung von AGBs und Bauverträgen mit KI",
   url: "https://baulytics.vercel.app",
   // Hier könnten weitere Konfigurationseinstellungen hinzugefügt werden

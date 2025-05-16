@@ -4,6 +4,21 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ## [Unreleased]
 
+[TIMESTAMP: 2024-05-16 15:10:00]
+TYPE: BUGFIX
+SCOPE: components/dashboard-shell.tsx
+DESCRIPTION: Die `className`-Prop wurde von der `<ApexAnalyticsLogo />`-Komponente entfernt, um einen Linter-Fehler ('Property className does not exist on type IntrinsicAttributes') zu beheben. Das Styling der Logotype-Größe muss ggf. innerhalb der `ApexAnalyticsLogo`-Komponente selbst oder durch andere Props erfolgen.
+REASON: Behebung eines Linter-Fehlers aufgrund einer nicht unterstützten Prop.
+
+[TIMESTAMP: {{YYYY-MM-DD HH:MM:SS}}]
+TYPE: FIX
+SCOPE: app/page.tsx, components/dashboard-shell.tsx
+DESCRIPTION: Korrigiert die Platzierung des Website-Footers und entfernt einen unerwünschten Button.
+    1. Footer-Text ('ApexAnalytics (ehem. Baulytics) by GemDynamics...') wurde vom Ende der `app/page.tsx` entfernt.
+    2. Der Footer wurde korrekt in das `<footer>`-Element von `components/dashboard-shell.tsx` mit dem Text 'ApexAnalytics (ehem. Baulytics) by GemDynamics Gewinner des Hackathon der KI CON 2025 in Wien' und passenden Tailwind-Klassen eingefügt.
+    3. Ein als "Jetzt Analyse starten" beschrifteter Button (und der umschließende `AuthRedirectLink`) wurde aus `app/page.tsx` entfernt.
+REASON: Korrektur von Fehlplatzierungen und UI-Elementen aus einer vorherigen Aktualisierungsrunde, um die Konsistenz und korrekte Darstellung der Benutzeroberfläche sicherzustellen.
+
 [TIMESTAMP: {{YYYY-MM-DD HH:MM:SS}}]
 TYPE: BUGFIX
 SCOPE: app/layout.tsx, components/animation/page-transition-wrapper.tsx
@@ -468,5 +483,73 @@ TYPE: FEATURE
 SCOPE: components/ui/carousel.tsx
 DESCRIPTION: Themed Carousel component. Adjusted CarouselContent to include rounded corners. Themed CarouselPrevious and CarouselNext buttons: applied 'glass' variant, increased size, adjusted positioning for better proximity to content, added hover effects, consistent focus rings, and clearer disabled states. Updated icon sizes and text colors for hover states.
 REASON: Align Carousel component with the Baulytics Epic Theme visual style and improve usability.
+
+[TIMESTAMP: 2025-05-15 21:00:00]
+TYPE: FEATURE
+SCOPE: Branding, UI, Components
+DESCRIPTION: Focused branding update: Integrated new animated SVG logo for ApexAnalytics, replaced project name 'BauVertragsanalyse' (and relevant instances of 'Baulytics') with 'ApexAnalytics' across UI texts and configurations, and updated footer content. Created new `AnimatedApexLogo` component with complex CSS/SMIL animations. Updated `dashboard-header.tsx`, `config/site.ts`, `app/layout.tsx`, `app/page.tsx`, and `components/dashboard-shell.tsx`.
+REASON: Execute a focused branding update as per TASK_ID: FocusedBrandingUpdate_ApexAnalytics_LogoTextFooter_20250515_204000.
+
+[TIMESTAMP: 2024-05-16 14:30:00]
+TYPE: FIX
+SCOPE: components/dashboard-shell.tsx
+DESCRIPTION: Die Copyright-Informationen ("© 2024 ApexAnalytics. Alle Rechte vorbehalten.") wurden im Footer wiederhergestellt. Sie wurden unter dem bestehenden Footer-Text als separater Absatz hinzugefügt.
+REASON: Wiederherstellung zuvor entfernter, aber weiterhin relevanter Copyright-Informationen im globalen Footer.
+
+[TIMESTAMP: 2024-05-16 14:35:00]
+TYPE: FEATURE
+SCOPE: components/dashboard-shell.tsx
+DESCRIPTION: Dem Footer wurden Links für "Impressum", "Datenschutz" und "Kontakt" hinzugefügt. Diese befinden sich in einem neuen Absatz unter der Copyright-Zeile und verwenden Platzhalter-Hrefs.
+REASON: Erweiterung des Footers um rechtlich relevante und kontaktbezogene Links.
+
+[TIMESTAMP: 2024-05-16 15:00:00]
+TYPE: FEATURE
+SCOPE: components/dashboard-shell.tsx
+DESCRIPTION: Der Header wurde aktualisiert, um das `GemDynLogo.png` (als `next/image`) und die `ApexAnalyticsLogo`-Komponente (`@/components/ui/apex-analytics-logo.tsx`) zu verwenden. Das bisherige `Building2`-Icon und der Text-Logotype wurden ersetzt. Beide neuen Elemente sind mit `AuthRedirectLink` auf die Startseite verlinkt.
+REASON: Umsetzung der Anforderungen aus TASK_ID: UpdateHeaderElements_20250516_042837 zur Aktualisierung der Header-Branding-Elemente.
+
+[TIMESTAMP: 2024-05-16 15:05:00]
+TYPE: BUGFIX
+SCOPE: components/dashboard-shell.tsx
+DESCRIPTION: Korrektur eines Importfehlers für die `ApexAnalyticsLogo`-Komponente. Der Import wurde von einem benannten Import (`{ ApexAnalyticsLogo }`) zu einem Standardimport (`ApexAnalyticsLogo`) geändert, um den Linter-Fehler und den Laufzeitfehler "Element type is invalid" zu beheben. Der ungenutzte Import `Building2` von `lucide-react` wurde ebenfalls entfernt.
+REASON: Behebung eines Laufzeitfehlers und Linter-Fehlers, der durch einen falschen Importtyp verursacht wurde.
+
+[TIMESTAMP: 2024-05-16 15:15:00]
+TYPE: FEATURE
+SCOPE: app/layout.tsx, Global Styles
+DESCRIPTION: Die Schriftart 'Poppins' (Gewichtung 700) wurde dem Projekt hinzugefügt, indem die entsprechenden `<link>`-Tags (`preconnect` zu fonts.googleapis.com, fonts.gstatic.com und das Stylesheet) in die `app/layout.tsx` Datei eingefügt wurden. Dies ermöglicht die korrekte Darstellung der Schriftart im gesamten Projekt.
+REASON: Erfüllung der Anforderung, die Poppins-Schriftart global zu laden, wie im bereitgestellten Bild spezifiziert.
+
+[TIMESTAMP: 2024-05-16 15:20:00]
+TYPE: BUGFIX
+SCOPE: app/layout.tsx
+DESCRIPTION: Das Attribut `precedence="default"` wurde dem `<link rel="stylesheet">`-Tag für die Poppins-Schriftart hinzugefügt. Dies behebt den Next.js-Fehler "Cannot render a <link rel=\"stylesheet\" /> outside the main document without knowing its precedence".
+REASON: Behebung eines Laufzeitfehlers im Zusammenhang mit der Platzierung von Stylesheet-Links im Next.js App Router.
+
+[TIMESTAMP: 2024-05-16 15:25:00]
+TYPE: REFACTOR
+SCOPE: components/ui/apex-analytics-logo.tsx, components/dashboard-shell.tsx
+DESCRIPTION: 
+1. Refaktorisierung von `components/ui/apex-analytics-logo.tsx`: `ApexAnalyticsAnimatedLogo` ist nun der Default-Export. Die `App`-Demokomponente und zugehöriger Beispielcode wurden entfernt, um die Datei auf die Kernfunktionalität der Logo-Komponente zu fokussieren. Die Komponente akzeptiert `fontSize` und `className` Props.
+2. Anpassung von `components/dashboard-shell.tsx`: Der Import von `ApexAnalyticsAnimatedLogo` wurde auf den Default-Import umgestellt. Die Komponente wird nun mit einer `fontSize="1.5rem"` Prop gerendert, um die Größe im Header-Kontext anzupassen.
+REASON: Korrekte Bereitstellung und Integration der `ApexAnalyticsAnimatedLogo`-Komponente gemäß TASK_ID: RefactorApexLogoComponent_And_GuideHeaderIntegration_20250516_044113. Behebt frühere Import- und Styling-Probleme.
+
+[TIMESTAMP: 2024-05-16 15:30:00]
+TYPE: FEATURE
+SCOPE: components/dashboard-header.tsx
+DESCRIPTION: Das `AnimatedApexLogo` (Wortmarke) wurde im `DashboardHeader` durch das `GemDynLogo.svg` (Bildmarke/Icon) ersetzt. Das SVG wird als React-Komponente importiert und verwendet die bestehenden Styling-Klassen (`h-10 w-auto`).
+REASON: Anpassung des Header-Logos gemäß Benutzeranforderung, um die Bildmarke anstelle der animierten Wortmarke zu verwenden.
+
+[TIMESTAMP: 2024-05-16 15:35:00]
+TYPE: FEATURE
+SCOPE: components/dashboard-header.tsx
+DESCRIPTION: Das `GemDynLogo.svg` (Bildmarke/Icon) wurde im `DashboardHeader` durch die `DiamondLogo`-Komponente aus `components/ui/gd-logo.tsx` ersetzt. Die Größe wird über die `size="w-10 h-10"` Prop gesteuert.
+REASON: Austausch des Header-Logos gemäß Benutzeranforderung, um die `DiamondLogo`-Komponente zu verwenden.
+
+[TIMESTAMP: 2024-05-16 15:40:00]
+TYPE: REVERT
+SCOPE: components/dashboard-header.tsx
+DESCRIPTION: Die `DiamondLogo`-Komponente (aus `components/ui/gd-logo.tsx`) und ihr Import wurden vorübergehend aus dem `DashboardHeader` entfernt.
+REASON: Gemäß Benutzeranweisung, das Logo vorerst aus dem Header zu entfernen.
 
 --- 

@@ -266,7 +266,8 @@ export default function Home() {
             Demo ansehen
           </Link>
         </div>
+
       </div>
     </main>
-  );
+  )
 }

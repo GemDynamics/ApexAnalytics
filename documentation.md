@@ -1,6 +1,14 @@
-## Baulytics Epic Theme Implementierung
+## ApexAnalytics Epic Theme Implementierung
 
-Diese Dokumentation beschreibt die Implementierung des "Baulytics Epic Theme" für das Baulytics Projekt. Ziel war eine umfassende UI-Überarbeitung, um ein extrem episches, visuell ansprechendes, hochmodernes und Dribbble/Awwwards-verdächtiges Erscheinungsbild zu erzielen. Der Fokus lag auf einem futuristischen, technik-orientierten Look, der speziell auf Legal-Tech und Datenanalyse zugeschnitten ist.
+Diese Dokumentation beschreibt die Implementierung des "ApexAnalytics Epic Theme" für das ApexAnalytics Projekt. Ziel war eine umfassende UI-Überarbeitung, um ein extrem episches, visuell ansprechendes, hochmodernes und Dribbble/Awwwards-verdächtiges Erscheinungsbild zu erzielen. Der Fokus lag auf einem futuristischen, technik-orientierten Look, der speziell auf Legal-Tech und Datenanalyse zugeschnitten ist.
+
+### Neues Logo und Branding
+Das Projekt verwendet nun den Namen **ApexAnalytics**. Ein neues, animiertes SVG-Logo wurde in `components/ui/animated-apex-logo.tsx` erstellt und ist prominent im Header (`components/dashboard-header.tsx`) platziert. Das Logo beinhaltet komplexe Animationen:
+- Der äußere Pfad zeichnet sich mit einem leuchtenden Strich und füllt sich anschließend mit einem rollenden Farbverlauf (Blau zu Lila).
+- Der innere Pfad (falls Pfaddaten bereitgestellt werden) blendet sich mit einem eigenen rollenden Farbverlauf (dezente Grautöne) ein.
+- Das gesamte Logo hat einen Hover-Effekt mit Hervorhebung.
+
+Der Name "BauVertragsanalyse" wurde projektweit durch "ApexAnalytics" ersetzt. Der Footer wurde ebenfalls mit neuen Informationen aktualisiert.
 
 ### Kernelemente des Themes:
 
@@ -10,11 +18,11 @@ Diese Dokumentation beschreibt die Implementierung des "Baulytics Epic Theme" f�
     *   Light Mode: Wahlweise animierte helle Rolling Gradients oder ein sauberer statischer heller Hintergrund (z.B. `#F8F9FC`). Textfarbe Dunkelgrau/Fast Schwarz (z.B. `#1A202C`).
 *   **Typografie:** "Inter" Schriftart mit klarer Hierarchie.
 *   **Effekte & Animationen:** Extrem glatte Interaktionen, kreative "Rolling Gradients", "Smooth Animations", "Mouseover Highlighting" mit "Glow Effects", Glaseffekte (Backdrop-Blur).
-*   **Globale Stile:** Implementiert in `tailwind.config.ts` (Farben, Keyframes, Animationen) und `app/globals.css` (CSS-Variablen, Typografie, Scrollbar, Hintergrund-Gradienten).
+*   **Globale Stile:** Implementiert in `tailwind.config.ts` (Farben, Keyframes, Animationen) und `app/globals.css` (CSS-Variablen, Typografie, Scrollbar, Hintergrund-Gradienten). Farbnamen wie `baulytics.gradient_start` etc. in `tailwind.config.ts` beziehen sich auf das ursprüngliche Theme-Design und bleiben vorerst bestehen, auch wenn der Projektname geändert wurde.
 
 ### Thematisierte Komponenten
 
-Folgende Shadcn UI Komponenten wurden bisher an das "Baulytics Epic Theme" angepasst:
+Folgende Shadcn UI Komponenten wurden bisher an das "ApexAnalytics Epic Theme" angepasst:
 
 *   `Accordion`
 *   `Alert`
@@ -57,7 +65,7 @@ Die thematisierten Komponenten nutzen durchgängig die definierten Farbpaletten,
 
 ### Animationen mit Framer Motion
 
-`framer-motion` wurde in das Projekt integriert, um anspruchsvolle Animationen auf der gesamten Webseite zu ermöglichen. Dies unterstützt das "Baulytics Epic Theme" und trägt zu einer modernen, dynamischen Benutzererfahrung bei.
+`framer-motion` wurde in das Projekt integriert, um anspruchsvolle Animationen auf der gesamten Webseite zu ermöglichen. Dies unterstützt das "ApexAnalytics Epic Theme" und trägt zu einer modernen, dynamischen Benutzererfahrung bei.
 
 **Implementierte Grundlagen:**
 
@@ -81,4 +89,4 @@ Framer Motion bietet eine breite Palette an Möglichkeiten, um Animationen zu er
 *   **Scroll-Animationen:** `whileInView` und `viewport` ermöglichen das Animieren von Elementen, wenn sie in den sichtbaren Bereich gelangen.
 *   **Layout-Animationen:** Mit dem `layout` Prop können Änderungen an Größe oder Position von Elementen automatisch animiert werden.
 
-Diese Werkzeuge können verwendet werden, um die bestehenden Komponenten weiter zu verfeinern, neue Interaktionsmuster zu schaffen und die visuelle Attraktivität der Baulytics-Anwendung gezielt zu steigern. Bei der Implementierung sollte stets auf eine gute Performance geachtet werden (Bevorzugung von `opacity` und `transform` Animationen). 
+Diese Werkzeuge können verwendet werden, um die bestehenden Komponenten weiter zu verfeinern, neue Interaktionsmuster zu schaffen und die visuelle Attraktivität der ApexAnalytics-Anwendung gezielt zu steigern. Bei der Implementierung sollte stets auf eine gute Performance geachtet werden (Bevorzugung von `opacity` und `transform` Animationen). 
